@@ -94,6 +94,8 @@ interface BaseTool {
   animated?: boolean
   /** Loop length in seconds when animated. */
   duration?: number
+  /** Canvas tools: resolution multiplier for the live preview while it's playing (exports stay full quality). */
+  motionScale?: number
   /** Part of the "Raw" collection: abstract, grainy, editorial. */
   raw?: boolean
   /** Starting values for the global layers (merged over their defaults). */

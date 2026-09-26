@@ -10,29 +10,30 @@ Abstract, grainy, editorial generators, each with one-click **moods**.
 
 | # | Tool | What it makes | Output | Motion |
 |---|------|---------------|--------|--------|
-| 01 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
-| 02 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
-| 03 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
-| 04 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
-| 05 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
-| 06 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
+| 01 | Long Exposure | Silky, motion-blurred water (or any photo) via a slow-shutter flow smear | PNG | ✓ |
+| 02 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
+| 03 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
+| 04 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
+| 05 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
+| 06 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
+| 07 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
 
 ### Classics
 | # | Tool | Category | Output | Motion |
 |---|------|----------|--------|--------|
-| 07 | Halftone | Pattern | SVG / PNG | ✓ |
-| 08 | Mesh Gradient | Texture | PNG | ✓ |
-| 09 | Dither (upload your own image) | Image | PNG | |
-| 10 | Stamp | Type | SVG / PNG | ✓ |
-| 11 | Bauhaus Grid | Shape | SVG / PNG | |
-| 12 | Flow Field | Texture | SVG / PNG | ✓ |
-| 13 | Truchet | Pattern | SVG / PNG | |
-| 14 | Blob | Shape | SVG / PNG | ✓ |
-| 15 | Topography | Texture | SVG / PNG | ✓ |
-| 16 | Type Repeat | Type | SVG / PNG | ✓ |
-| 17 | Sunburst | Pattern | SVG / PNG | ✓ |
-| 18 | Wave Lines | Pattern | SVG / PNG | ✓ |
-| 19 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
+| 08 | Halftone | Pattern | SVG / PNG | ✓ |
+| 09 | Mesh Gradient | Texture | PNG | ✓ |
+| 10 | Dither (upload your own image) | Image | PNG | |
+| 11 | Stamp | Type | SVG / PNG | ✓ |
+| 12 | Bauhaus Grid | Shape | SVG / PNG | |
+| 13 | Flow Field | Texture | SVG / PNG | ✓ |
+| 14 | Truchet | Pattern | SVG / PNG | |
+| 15 | Blob | Shape | SVG / PNG | ✓ |
+| 16 | Topography | Texture | SVG / PNG | ✓ |
+| 17 | Type Repeat | Type | SVG / PNG | ✓ |
+| 18 | Sunburst | Pattern | SVG / PNG | ✓ |
+| 19 | Wave Lines | Pattern | SVG / PNG | ✓ |
+| 20 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
 
 Every tool supports:
 

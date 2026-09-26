@@ -5,6 +5,8 @@ export interface Palette {
 }
 
 export const PALETTES: Palette[] = [
+  { name: 'Open Water', colors: ['#062A56', '#0A5C9E', '#1C8FC4', '#7CC4DD', '#F2F4F3'] },
+  { name: 'Dusk Tide', colors: ['#2B1B3F', '#6B3A6E', '#C0627A', '#F2A07B', '#FFE9D6'] },
   { name: 'Lattice', colors: ['#5E9DB3', '#86DDF8', '#F7D2E4', '#E8E8E8'] },
   { name: 'Signal Blue', colors: ['#0B2DF5', '#F4F4FF', '#FF9FD8'] },
   { name: 'Echo Red', colors: ['#F1EEE8', '#FF2A10', '#141414'] },

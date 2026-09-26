@@ -115,6 +115,8 @@ export async function recordVideo(tool: ToolDef, state: DocState, onProgress?: (
     await frame(frameCanvas, i / frames)
     buffer.push(await createImageBitmap(frameCanvas))
     onProgress?.((i / frames) * 0.5)
+    // yield a task between frames so the page stays responsive and progress repaints
+    await new Promise((r) => setTimeout(r, 0))
   }
 
   const mimeType = pickMime()

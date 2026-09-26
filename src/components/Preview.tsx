@@ -61,7 +61,8 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
         if (cover) el.firstElementChild?.setAttribute('preserveAspectRatio', 'xMidYMid slice')
       } else if (canvasRef.current && display.w > 0) {
         const fit = cover ? Math.max(display.w / w, display.h / h) : display.w / w
-        const scale = Math.min(2, fit * Math.min(2, devicePixelRatio || 1))
+        const motion = playing && tool.animated ? (tool.motionScale ?? 1) : 1
+        const scale = Math.min(2, fit * Math.min(2, devicePixelRatio || 1)) * motion
         drawCanvasTool(tool, state, canvasRef.current, scale, t)
       }
     }
