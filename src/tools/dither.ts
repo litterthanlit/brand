@@ -69,6 +69,15 @@ export const dither: CanvasTool = {
       when: (p) => p.source === 'image',
     },
   ],
+  presets: [
+    {
+      name: 'Negative',
+      format: 'portrait',
+      params: { palette: ['#0A0A0A', '#EDEDED'], algo: 'atkinson', pixel: 3 },
+      type: { enabled: true, layout: 'center', title: '', body: '', label: '', caption: 'IMAGE 0034 ■ SPECIMEN', font: 'mono', color: '#EDEDED' },
+    },
+    { name: 'Riso', format: 'square', params: { palette: ['#1D1A16', '#FF48B0', '#F6F1E7'], algo: 'bayer8', pixel: 4 }, finish: { grain: 0.3, grainType: 'soft' } },
+  ],
   draw({ g, w, h, p, rng, noise }) {
     const px = Math.max(1, num(p, 'pixel'))
     const lw = Math.ceil(w / px)

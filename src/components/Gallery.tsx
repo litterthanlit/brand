@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toolHref } from '../hooks/useHashRoute'
 import { useReducedMotion } from '../hooks/useReducedMotion'
-import { defaultState, type DocState } from '../lib/engine'
+import { defaultState, stateFromPreset } from '../lib/engine'
 import { CATEGORIES, getTool, TOOLS } from '../tools'
-import type { Category, ParamValues, ToolDef } from '../tools/types'
+import type { Category, Preset, ToolDef } from '../tools/types'
 import { ArrowUpRightIcon, DiceIcon } from './Icons'
 import { Preview } from './Preview'
 
 export function Gallery() {
   const reducedMotion = useReducedMotion()
-  const [filter, setFilter] = useState<Category | 'All'>('All')
-  const visible = filter === 'All' ? TOOLS : TOOLS.filter((t) => t.category === filter)
+  const [filter, setFilter] = useState<Filter>('All')
+  const visible = filter === 'All' ? TOOLS : filter === 'Raw' ? TOOLS.filter((t) => t.raw) : TOOLS.filter((t) => t.category === filter)
 
   useEffect(() => {
     document.title = 'Brand Playground: tiny tools for brand assets'
@@ -105,9 +105,11 @@ function SiteHeader() {
   )
 }
 
-function FilterChips({ value, onChange }: { value: Category | 'All'; onChange: (c: Category | 'All') => void }) {
+type Filter = Category | 'All' | 'Raw'
+
+function FilterChips({ value, onChange }: { value: Filter; onChange: (c: Filter) => void }) {
   const counts = useMemo(() => Object.fromEntries(CATEGORIES.map((c) => [c, TOOLS.filter((t) => t.category === c).length])), [])
-  const options: (Category | 'All')[] = ['All', ...CATEGORIES]
+  const options: Filter[] = ['All', 'Raw', ...CATEGORIES]
   return (
     <div role="radiogroup" aria-label="Filter by category" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
       {options.map((c) => {
@@ -124,7 +126,7 @@ function FilterChips({ value, onChange }: { value: Category | 'All'; onChange: (
             }`}
           >
             {c}
-            <span className={`font-mono text-[10.5px] ${active ? 'text-white/70' : 'text-ink-3'}`}>{c === 'All' ? TOOLS.length : counts[c]}</span>
+            <span className={`font-mono text-[10.5px] ${active ? 'text-white/70' : 'text-ink-3'}`}>{c === 'All' ? TOOLS.length : c === 'Raw' ? TOOLS.filter((t) => t.raw).length : counts[c]}</span>
           </button>
         )
       })}
@@ -147,7 +149,7 @@ function ToolCard({ tool, index, reducedMotion }: { tool: ToolDef; index: number
       <div className="relative overflow-hidden rounded-2xl border border-line bg-panel transition-[transform,box-shadow] duration-300 ease-out-soft group-hover:-translate-y-1 group-hover:shadow-[0_24px_48px_-24px_rgba(17,17,17,0.35)]">
         <Preview tool={tool} state={state} playing={hover && !reducedMotion} lazy className="w-full" label={`${tool.name} example`} />
         {tool.animated && (
-          <span className="absolute top-3 left-3 rounded-full bg-panel/85 px-2 py-0.5 font-mono text-[10px] tracking-[0.06em] text-ink-2 uppercase backdrop-blur-md">
+          <span className="absolute top-3 right-3 rounded-full bg-panel/85 px-2 py-0.5 font-mono text-[10px] tracking-[0.06em] text-ink-2 uppercase backdrop-blur-md">
             Motion
           </span>
         )}
@@ -171,16 +173,16 @@ function ToolCard({ tool, index, reducedMotion }: { tool: ToolDef; index: number
 /** Three large live pieces in an asymmetric magazine grid. */
 function FeaturedStrip({ reducedMotion }: { reducedMotion: boolean }) {
   const items = useMemo(() => {
-    const mk = (id: string, format: string, params: ParamValues = {}) => {
+    const mk = (id: string, preset: Omit<Preset, 'name'>) => {
       const tool = getTool(id)!
-      const base = defaultState(tool)
-      const state: DocState = { ...base, format, params: { ...base.params, ...params } }
+      const base = tool.defaults ?? {}
+      const state = stateFromPreset(tool, { ...preset, finish: { ...base.finish, ...preset.finish }, type: { ...base.type, ...preset.type } })
       return { tool, state, n: String(TOOLS.indexOf(tool) + 1).padStart(2, '0') }
     }
     return [
-      mk('mesh-gradient', 'landscape'),
-      mk('stamp', 'landscape', { palette: ['#111111', '#F4F2EE', '#FF4F12'] }),
-      mk('halftone', 'landscape', { palette: ['#FF4F12', '#111111'], field: 'radial', cells: 28 }),
+      mk('line-sweep', { format: 'landscape', seed: 7, type: { enabled: false } }),
+      mk('blur-echo', { format: 'landscape', seed: 7, type: { enabled: false } }),
+      mk('particle-stream', { format: 'landscape', seed: 7, type: { enabled: false } }),
     ]
   }, [])
   const [lead, ...rest] = items

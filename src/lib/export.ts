@@ -1,5 +1,6 @@
 import type { ToolDef } from '../tools/types'
-import { drawCanvasTool, renderSvg, sizeOf, type DocState } from './engine'
+import { drawCanvasTool, renderContentSvg, renderLayers, renderSvg, sizeOf, type DocState } from './engine'
+import { withEmbeddedFonts } from './fonts'
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -14,8 +15,8 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export const fileBase = (tool: ToolDef, state: DocState) => `${tool.id}-${state.seed}`
 
-export function exportSvg(tool: ToolDef, state: DocState) {
-  const svg = renderSvg(tool, state)
+export async function exportSvg(tool: ToolDef, state: DocState) {
+  const svg = await withEmbeddedFonts(renderSvg(tool, state))
   downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), `${fileBase(tool, state)}.svg`)
 }
 
@@ -39,24 +40,45 @@ function loadSvgImage(svg: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Render one frame of any tool into a canvas at `scale` (1 = format size). */
-export async function renderToCanvas(tool: ToolDef, state: DocState, canvas: HTMLCanvasElement, scale: number, t = 0) {
-  if (tool.kind === 'canvas') {
-    drawCanvasTool(tool, state, canvas, scale, t)
-    return
-  }
+/** SVG → image with fonts embedded, since images can't see the page's fonts. */
+const rasterise = async (svg: string) => loadSvgImage(await withEmbeddedFonts(svg))
+
+/**
+ * Renders frames of a tool with its grain and type layers into a canvas.
+ * The static layers are rasterised once and reused for every frame.
+ */
+export async function createCompositor(tool: ToolDef, state: DocState, scale: number) {
   const { w, h } = sizeOf(state)
-  canvas.width = Math.round(w * scale)
-  canvas.height = Math.round(h * scale)
-  const img = await loadSvgImage(renderSvg(tool, state, t))
-  const g = canvas.getContext('2d')!
-  g.setTransform(1, 0, 0, 1, 0, 0)
-  g.drawImage(img, 0, 0, canvas.width, canvas.height)
+  const layers = renderLayers(state)
+  const grain = layers.grain ? await loadSvgImage(layers.grain) : null
+  const overlay = layers.overlay ? await rasterise(layers.overlay) : null
+  const pw = Math.round(w * scale)
+  const ph = Math.round(h * scale)
+
+  return async function frame(canvas: HTMLCanvasElement, t = 0) {
+    if (tool.kind === 'canvas') {
+      drawCanvasTool(tool, state, canvas, scale, t)
+    } else {
+      canvas.width = pw
+      canvas.height = ph
+      const img = await rasterise(renderContentSvg(tool, state, t))
+      canvas.getContext('2d')!.drawImage(img, 0, 0, pw, ph)
+    }
+    const g = canvas.getContext('2d')!
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    if (grain) {
+      g.globalCompositeOperation = layers.blend === 'overlay' ? 'overlay' : 'source-over'
+      g.drawImage(grain, 0, 0, pw, ph)
+      g.globalCompositeOperation = 'source-over'
+    }
+    if (overlay) g.drawImage(overlay, 0, 0, pw, ph)
+  }
 }
 
 export async function exportPng(tool: ToolDef, state: DocState, scale: number) {
   const canvas = document.createElement('canvas')
-  await renderToCanvas(tool, state, canvas, scale)
+  const frame = await createCompositor(tool, state, scale)
+  await frame(canvas, 0)
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
   if (!blob) throw new Error('PNG encoding failed')
   downloadBlob(blob, `${fileBase(tool, state)}${scale === 1 ? '' : `@${scale}x`}.png`)
@@ -88,8 +110,9 @@ export async function recordVideo(tool: ToolDef, state: DocState, onProgress?: (
 
   const buffer: ImageBitmap[] = []
   const frameCanvas = document.createElement('canvas')
+  const frame = await createCompositor(tool, state, scale)
   for (let i = 0; i < frames; i++) {
-    await renderToCanvas(tool, state, frameCanvas, scale, i / frames)
+    await frame(frameCanvas, i / frames)
     buffer.push(await createImageBitmap(frameCanvas))
     onProgress?.((i / frames) * 0.5)
   }

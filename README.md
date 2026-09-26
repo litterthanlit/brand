@@ -5,29 +5,44 @@ Every tool runs entirely in the browser. There are no accounts, nothing is uploa
 
 ## Tools
 
+### Raw collection
+Abstract, grainy, editorial generators, each with one-click **moods**.
+
+| # | Tool | What it makes | Output | Motion |
+|---|------|---------------|--------|--------|
+| 01 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
+| 02 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
+| 03 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
+| 04 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
+| 05 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
+| 06 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
+
+### Classics
 | # | Tool | Category | Output | Motion |
 |---|------|----------|--------|--------|
-| 01 | Halftone | Pattern | SVG / PNG | ✓ |
-| 02 | Mesh Gradient | Texture | PNG | ✓ |
-| 03 | Dither (upload your own image) | Image | PNG | |
-| 04 | Stamp | Type | SVG / PNG | ✓ |
-| 05 | Bauhaus Grid | Shape | SVG / PNG | |
-| 06 | Flow Field | Texture | SVG / PNG | ✓ |
-| 07 | Truchet | Pattern | SVG / PNG | |
-| 08 | Blob | Shape | SVG / PNG | ✓ |
-| 09 | Topography | Texture | SVG / PNG | ✓ |
-| 10 | Type Repeat | Type | SVG / PNG | ✓ |
-| 11 | Sunburst | Pattern | SVG / PNG | ✓ |
-| 12 | Wave Lines | Pattern | SVG / PNG | ✓ |
-| 13 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
+| 07 | Halftone | Pattern | SVG / PNG | ✓ |
+| 08 | Mesh Gradient | Texture | PNG | ✓ |
+| 09 | Dither (upload your own image) | Image | PNG | |
+| 10 | Stamp | Type | SVG / PNG | ✓ |
+| 11 | Bauhaus Grid | Shape | SVG / PNG | |
+| 12 | Flow Field | Texture | SVG / PNG | ✓ |
+| 13 | Truchet | Pattern | SVG / PNG | |
+| 14 | Blob | Shape | SVG / PNG | ✓ |
+| 15 | Topography | Texture | SVG / PNG | ✓ |
+| 16 | Type Repeat | Type | SVG / PNG | ✓ |
+| 17 | Sunburst | Pattern | SVG / PNG | ✓ |
+| 18 | Wave Lines | Pattern | SVG / PNG | ✓ |
+| 19 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
 
 Every tool supports:
 
 - **Randomize** (`R`), with per-parameter **locks** so you can keep what you like.
 - **History**: step back and forward through results (`←` `→`, `⌘Z`).
 - **Formats**: 1:1, 4:5, 16:9, 9:16, 3:1.
-- **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools.
-- **Share links**: the full state is encoded in the URL.
+- **Type layer**: title, body, a highlighted label and a mono caption in five editorial layouts (bottom right, bottom left, top left, centred, stacked words). Randomize never changes it.
+- **Finish layer**: soft grain, print speckle or dust, plus vignette.
+- **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools. Type and grain are baked in, and the artwork fonts (Inter Tight, JetBrains Mono, self-hosted) are embedded, so exports match the preview exactly.
+- **Share links**: the full state, including type and finish, is encoded in the URL.
 
 ## Develop
 
@@ -37,7 +52,7 @@ npm run dev        # http://localhost:5173
 npm run build      # typecheck + production build → dist/
 ```
 
-Stack: Vite, React 19, TypeScript, Tailwind CSS v4. It has no runtime dependencies beyond React.
+Stack: Vite, React 19, TypeScript, Tailwind CSS v4. Runtime dependencies are just React and two self-hosted font packages.
 The noise, RNG, marching squares, dithering and exporters are all in `src/lib`.
 
 Deploy: the output is static (`dist/`), so it works on Vercel, Netlify, GitHub Pages or any CDN.
@@ -64,7 +79,8 @@ export const myTool: SvgTool = {
 }
 ```
 
-Then add it to `TOOLS` in `src/tools/index.ts`. The controls panel, randomizer, URL sharing and all exports come for free.
+Then add it to `TOOLS` in `src/tools/index.ts`. The controls panel, randomizer, type and finish layers, URL sharing and all exports come for free.
+Optional: `raw: true` puts it in the Raw collection, `defaults` sets its starting format/finish/type, and `presets` adds mood chips.
 Rules: use the seeded `rng`/`noise` (never `Math.random`) so results are reproducible, and escape user text with `escapeXml`.
 
 ## Project layout
@@ -72,7 +88,7 @@ Rules: use the seeded `rng`/`noise` (never `Math.random`) so results are reprodu
 ```
 src/
   tools/        one file per generator + registry and types
-  lib/          engine (state, randomize, render), export, noise, rng, palettes, url state
+  lib/          engine (state, randomize, render), type + finish layers, fonts, export, noise, rng, palettes, url state
   components/   Gallery (home), Studio (editor), Controls, Preview, ExportMenu
   hooks/        hash router, reduced-motion
 ```

@@ -15,13 +15,19 @@ function fromBase64Url(s: string) {
 }
 
 /** Serialise shareable state. Images are never put in URLs (they never leave the browser). */
-export function encodeState(state: DocState) {
-  const params: ParamValues = {}
-  for (const [k, v] of Object.entries(state.params)) {
+const serialisable = (values: ParamValues) => {
+  const out: ParamValues = {}
+  for (const [k, v] of Object.entries(values)) {
     if (v === null || (typeof ImageBitmap !== 'undefined' && v instanceof ImageBitmap)) continue
-    params[k] = v
+    out[k] = v
   }
-  return toBase64Url(JSON.stringify({ s: state.seed, f: state.format, p: params }))
+  return out
+}
+
+export function encodeState(state: DocState) {
+  return toBase64Url(
+    JSON.stringify({ s: state.seed, f: state.format, p: serialisable(state.params), x: state.finish, y: state.type }),
+  )
 }
 
 export function decodeState(data: string): Partial<DocState> | null {
@@ -32,6 +38,8 @@ export function decodeState(data: string): Partial<DocState> | null {
       seed: Number.isFinite(raw.s) ? raw.s : undefined,
       format: typeof raw.f === 'string' ? raw.f : undefined,
       params: raw.p && typeof raw.p === 'object' ? raw.p : undefined,
+      finish: raw.x && typeof raw.x === 'object' ? raw.x : undefined,
+      type: raw.y && typeof raw.y === 'object' ? raw.y : undefined,
     }
   } catch {
     return null

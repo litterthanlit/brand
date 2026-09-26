@@ -26,6 +26,21 @@ export const flowField: SvgTool = {
       options: [{ value: 'random', label: 'Random' }, { value: 'angle', label: 'By angle' }, { value: 'band', label: 'Bands' }],
     },
   ],
+  presets: [
+    {
+      name: 'Signal',
+      format: 'portrait',
+      params: { palette: ['#0B2DF5', '#F4F4FF', '#FF9FD8'], count: 500, steps: 40, weight: 1.6, opacity: 0.9, cap: 'round' },
+      finish: { grain: 0.3, grainType: 'soft' },
+      type: { enabled: true, layout: 'tl', title: 'Field Study', body: 'Currents', label: '', caption: '', color: '#F4F4FF', size: 1.6, measure: 0.7 },
+    },
+    {
+      name: 'Graphite',
+      format: 'landscape',
+      params: { palette: ['#EDEAE3', '#161616'], count: 1400, steps: 28, weight: 0.8, opacity: 0.7 },
+      finish: { grain: 0.4, grainType: 'speckle' },
+    },
+  ],
   render({ w, h, p, rng, noise, t }) {
     const [bg, ...inks] = pal(p, 'palette')
     const m = Math.min(w, h)

@@ -1,11 +1,13 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toolHref } from '../hooks/useHashRoute'
-import { defaultState, randomizeState, sanitizeParams, sizeOf, type DocState } from '../lib/engine'
+import { defaultState, randomizeState, sanitizeParams, sanitizeValues, sizeOf, stateFromPreset, type DocState } from '../lib/engine'
+import { FINISH_PARAMS } from '../lib/finish'
+import { TYPE_PARAMS } from '../lib/typeLayer'
 import { FORMATS, getFormat } from '../lib/formats'
 import { newSeed } from '../lib/random'
 import { decodeState, encodeState } from '../lib/urlState'
 import { TOOLS } from '../tools'
-import type { ParamValue, ToolDef } from '../tools/types'
+import type { ParamValue, Preset, ToolDef } from '../tools/types'
 import { Controls } from './Controls'
 import { ExportMenu } from './ExportMenu'
 import { ArrowLeftIcon, DiceIcon, PauseIcon, PlayIcon, RedoIcon, ResetIcon, UndoIcon } from './Icons'
@@ -13,6 +15,14 @@ import { Preview } from './Preview'
 import { Toast, useToast } from './Toast'
 
 const HISTORY_LIMIT = 60
+
+const TABS = [
+  { id: 'generator', label: 'Generator' },
+  { id: 'type', label: 'Type' },
+  { id: 'finish', label: 'Finish' },
+] as const
+type TabId = (typeof TABS)[number]['id']
+const NO_LOCKS = new Set<string>()
 
 function initialState(tool: ToolDef, data: string | null): DocState {
   const base = defaultState(tool)
@@ -22,7 +32,22 @@ function initialState(tool: ToolDef, data: string | null): DocState {
     seed: decoded.seed ?? base.seed,
     format: decoded.format && FORMATS.some((f) => f.id === decoded.format) ? decoded.format : base.format,
     params: sanitizeParams(tool, decoded.params ?? {}),
+    finish: decoded.finish ? sanitizeValues(FINISH_PARAMS, decoded.finish) : base.finish,
+    type: decoded.type ? sanitizeValues(TYPE_PARAMS, decoded.type) : base.type,
   }
+}
+
+/** Tiny colour chip for a preset button, from the preset's palette (or the tool's default). */
+function PresetSwatch({ tool, preset }: { tool: ToolDef; preset: Preset }) {
+  const key = tool.params.find((p) => p.type === 'palette')?.key
+  const colors = (key && (preset.params?.[key] as string[] | undefined)) || (key && (tool.params.find((p) => p.key === key)?.default as string[])) || []
+  return (
+    <span aria-hidden="true" className="flex h-5 w-5 overflow-hidden rounded-full ring-1 ring-black/10">
+      {colors.slice(0, 3).map((c, i) => (
+        <span key={i} className="flex-1" style={{ background: c }} />
+      ))}
+    </span>
+  )
 }
 
 const isTypingTarget = (el: EventTarget | null) =>
@@ -31,6 +56,7 @@ const isTypingTarget = (el: EventTarget | null) =>
 export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
   const [hist, setHist] = useState(() => ({ stack: [initialState(tool, data)], index: 0 }))
   const [locked, setLocked] = useState<Set<string>>(() => new Set())
+  const [tab, setTab] = useState<TabId>('generator')
   const [playing, setPlaying] = useState(() => !!tool.animated && !matchMedia('(prefers-reduced-motion: reduce)').matches)
   const phaseRef = useRef(0)
   const { message, key: toastKey, notify } = useToast()
@@ -58,7 +84,22 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
 
   const randomize = useCallback(() => push((s) => randomizeState(tool, s, locked)), [push, tool, locked])
   const shuffleSeed = useCallback(() => push((s) => ({ ...s, seed: newSeed() })), [push])
-  const reset = useCallback(() => push((s) => ({ ...defaultState(tool), format: s.format })), [push, tool])
+  const reset = useCallback(() => push((s) => ({ ...defaultState(tool), format: s.format, type: s.type })), [push, tool])
+  const applyPreset = useCallback(
+    (preset: Preset) =>
+      push((s) => {
+        const next = stateFromPreset(tool, preset, s.format)
+        // keep any uploaded images; presets only describe the look
+        for (const p of tool.params) if (p.type === 'image') next.params[p.key] = s.params[p.key]
+        return next
+      }),
+    [push, tool],
+  )
+  const setLayer = useCallback(
+    (layer: 'finish' | 'type', key: string, value: ParamValue) => replace((s) => ({ ...s, [layer]: { ...s[layer], [key]: value } })),
+    [replace],
+  )
+  const layerActive = (id: string) => (id === 'type' ? state.type.enabled === true : (state.finish.grain as number) > 0 || (state.finish.vignette as number) > 0)
   const undo = useCallback(() => setHist((h) => ({ ...h, index: Math.max(0, h.index - 1) })), [])
   const redo = useCallback(() => setHist((h) => ({ ...h, index: Math.min(h.stack.length - 1, h.index + 1) })), [])
 
@@ -132,7 +173,7 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
       {/* Top bar */}
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-paper/80 px-4 backdrop-blur-md sm:px-5">
+      <header className="relative z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-paper/80 px-4 backdrop-blur-md sm:px-5">
         <a
           href="#/"
           className="inline-flex h-9 items-center gap-2 rounded-full pr-3 pl-2 text-[13px] text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink"
@@ -195,71 +236,142 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
 
         {/* Controls */}
         <aside aria-label={`${tool.name} settings`} className="min-h-0 border-t border-line bg-panel lg:overflow-y-auto lg:border-t-0 lg:border-l">
-          <section aria-labelledby="canvas-heading" className="border-b border-line px-5 py-4">
-            <h2 id="canvas-heading" className="mb-3 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
-              Canvas
-            </h2>
-            <div role="radiogroup" aria-label="Format" className="grid grid-cols-5 gap-1 rounded-lg bg-paper p-1">
-              {FORMATS.map((f) => {
-                const active = f.id === state.format
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    title={`${f.hint} · ${f.w}×${f.h}`}
-                    onClick={() => replace((s) => ({ ...s, format: f.id }))}
-                    className={`flex h-12 flex-col items-center justify-center gap-1 rounded-md text-[11.5px] transition-colors ${
-                      active ? 'bg-panel font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08),0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`block rounded-[2px] border ${active ? 'border-ink' : 'border-ink-3'}`}
-                      style={{ width: (f.w / Math.max(f.w, f.h)) * 16, height: (f.h / Math.max(f.w, f.h)) * 16 }}
-                    />
-                    {f.label}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="mt-2 text-[12px] text-ink-3">{getFormat(state.format).hint}</p>
-            <div className="mt-4 flex items-center gap-2">
-              <label htmlFor="seed" className="text-[13px] text-ink-2">
-                Seed
-              </label>
-              <input
-                id="seed"
-                type="number"
-                value={state.seed}
-                onChange={(e) => {
-                  const n = e.target.valueAsNumber
-                  if (Number.isFinite(n)) replace((s) => ({ ...s, seed: Math.max(0, Math.floor(n)) }))
-                }}
-                className="no-spinner ml-auto h-8 w-24 rounded-md border border-line bg-panel px-2 text-right font-mono text-[12px] tabular-nums outline-none hover:border-line-2 focus:border-ink"
-              />
-              <IconButton label="New seed" onClick={shuffleSeed}>
-                <DiceIcon size={15} />
-              </IconButton>
-              <IconButton label="Reset to defaults" onClick={reset}>
-                <ResetIcon size={15} />
-              </IconButton>
-            </div>
-          </section>
-          <section aria-labelledby="params-heading" className="pb-8">
-            <div className="flex items-baseline justify-between px-5 pt-4 pb-1">
-              <h2 id="params-heading" className="font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
-                Parameters
+          {tool.presets && tool.presets.length > 0 && (
+            <section aria-labelledby="moods-heading" className="border-b border-line px-5 pt-4 pb-4">
+              <h2 id="moods-heading" className="mb-2.5 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+                Moods
               </h2>
-              {locked.size > 0 && (
-                <button type="button" onClick={() => setLocked(new Set())} className="text-[12px] text-ink-2 underline underline-offset-4 hover:text-ink">
-                  Unlock all ({locked.size})
+              <div className="flex flex-wrap gap-1.5">
+                {tool.presets.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className="inline-flex h-8 items-center gap-2 rounded-full border border-line-2 pr-3 pl-1.5 text-[12.5px] text-ink transition-[border-color,transform] duration-150 hover:border-ink active:scale-[0.97]"
+                  >
+                    <PresetSwatch tool={tool} preset={preset} />
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div role="tablist" aria-label="Settings" className="sticky top-0 z-10 flex gap-1 border-b border-line bg-panel/95 px-3 pt-2 backdrop-blur-md">
+            {TABS.map((t) => {
+              const active = t.id === tab
+              return (
+                <button
+                  key={t.id}
+                  id={`tab-${t.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-controls={`panel-${t.id}`}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setTab(t.id)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const i = TABS.findIndex((x) => x.id === tab)
+                    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]
+                    setTab(next.id)
+                    document.getElementById(`tab-${next.id}`)?.focus()
+                  }}
+                  className={`relative h-10 px-3 text-[13px] transition-colors ${active ? 'font-medium text-ink' : 'text-ink-2 hover:text-ink'}`}
+                >
+                  {t.label}
+                  {t.id !== 'generator' && layerActive(t.id) && <span aria-label="(on)" className="ml-1.5 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-accent" />}
+                  {active && <span aria-hidden="true" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink" />}
                 </button>
-              )}
-            </div>
-            <Controls params={tool.params} values={state.params} locked={locked} onChange={setParam} onToggleLock={toggleLock} />
-          </section>
+              )
+            })}
+          </div>
+
+          <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-8">
+            {tab === 'generator' && (
+              <>
+                <section aria-labelledby="canvas-heading" className="border-b border-line px-5 py-4">
+                  <h2 id="canvas-heading" className="mb-3 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+                    Canvas
+                  </h2>
+                  <div role="radiogroup" aria-label="Format" className="grid grid-cols-5 gap-1 rounded-lg bg-paper p-1">
+                    {FORMATS.map((f) => {
+                      const active = f.id === state.format
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          title={`${f.hint} · ${f.w}×${f.h}`}
+                          onClick={() => replace((s) => ({ ...s, format: f.id }))}
+                          className={`flex h-12 flex-col items-center justify-center gap-1 rounded-md text-[11.5px] transition-colors ${
+                            active ? 'bg-panel font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08),0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`block rounded-[2px] border ${active ? 'border-ink' : 'border-ink-3'}`}
+                            style={{ width: (f.w / Math.max(f.w, f.h)) * 16, height: (f.h / Math.max(f.w, f.h)) * 16 }}
+                          />
+                          {f.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-2 text-[12px] text-ink-3">{getFormat(state.format).hint}</p>
+                  <div className="mt-4 flex items-center gap-2">
+                    <label htmlFor="seed" className="text-[13px] text-ink-2">
+                      Seed
+                    </label>
+                    <input
+                      id="seed"
+                      type="number"
+                      value={state.seed}
+                      onChange={(e) => {
+                        const n = e.target.valueAsNumber
+                        if (Number.isFinite(n)) replace((s) => ({ ...s, seed: Math.max(0, Math.floor(n)) }))
+                      }}
+                      className="no-spinner ml-auto h-8 w-24 rounded-md border border-line bg-panel px-2 text-right font-mono text-[12px] tabular-nums outline-none hover:border-line-2 focus:border-ink"
+                    />
+                    <IconButton label="New seed" onClick={shuffleSeed}>
+                      <DiceIcon size={15} />
+                    </IconButton>
+                    <IconButton label="Reset to defaults" onClick={reset}>
+                      <ResetIcon size={15} />
+                    </IconButton>
+                  </div>
+                </section>
+                <section aria-labelledby="params-heading">
+                  <div className="flex items-baseline justify-between px-5 pt-4 pb-1">
+                    <h2 id="params-heading" className="font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+                      Parameters
+                    </h2>
+                    {locked.size > 0 && (
+                      <button type="button" onClick={() => setLocked(new Set())} className="text-[12px] text-ink-2 underline underline-offset-4 hover:text-ink">
+                        Unlock all ({locked.size})
+                      </button>
+                    )}
+                  </div>
+                  <Controls params={tool.params} values={state.params} locked={locked} onChange={setParam} onToggleLock={toggleLock} />
+                </section>
+              </>
+            )}
+            {tab === 'type' && (
+              <section aria-label="Type layer">
+                <p className="px-5 pt-4 text-[12.5px] leading-[1.5] text-ink-3">Editorial text set over the artwork. It's embedded in every export, and Randomize never changes it.</p>
+                <Controls params={TYPE_PARAMS} values={state.type} locked={NO_LOCKS} showLocks={false} onChange={(k, v) => setLayer('type', k, v)} onToggleLock={() => {}} />
+              </section>
+            )}
+            {tab === 'finish' && (
+              <section aria-label="Finish layer">
+                <p className="px-5 pt-4 text-[12.5px] leading-[1.5] text-ink-3">Print texture over any tool. Grain is baked into SVG, PNG and video exports.</p>
+                <Controls params={FINISH_PARAMS} values={state.finish} locked={NO_LOCKS} showLocks={false} onChange={(k, v) => setLayer('finish', k, v)} onToggleLock={() => {}} />
+              </section>
+            )}
+          </div>
           <MobileToolSwitcher current={tool.id} />
         </aside>
       </div>

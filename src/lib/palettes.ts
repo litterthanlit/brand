@@ -5,6 +5,11 @@ export interface Palette {
 }
 
 export const PALETTES: Palette[] = [
+  { name: 'Lattice', colors: ['#5E9DB3', '#86DDF8', '#F7D2E4', '#E8E8E8'] },
+  { name: 'Signal Blue', colors: ['#0B2DF5', '#F4F4FF', '#FF9FD8'] },
+  { name: 'Echo Red', colors: ['#F1EEE8', '#FF2A10', '#141414'] },
+  { name: 'Negative', colors: ['#0A0A0A', '#EDEDED', '#8A8A8A'] },
+  { name: 'Dusk', colors: ['#F6EEF3', '#2A1606', '#3A62D9', '#FF3A0A', '#F6CFE4'] },
   { name: 'Signal', colors: ['#F4F2EE', '#111111', '#FF4F12'] },
   { name: 'Ink', colors: ['#111111', '#F4F2EE', '#FF4F12'] },
   { name: 'Riso', colors: ['#F6F1E7', '#FF48B0', '#0078BF', '#FFE800'] },

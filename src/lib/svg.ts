@@ -50,8 +50,8 @@ export function smoothOpenPath(pts: [number, number][]) {
 }
 
 export const FONT_STACKS: Record<string, string> = {
-  sans: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  sans: "'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif",
   serif: "Georgia, 'Times New Roman', Times, serif",
-  mono: "'SF Mono', Menlo, 'Courier New', monospace",
+  mono: "'JetBrains Mono', 'SF Mono', Menlo, 'Courier New', monospace",
   condensed: "'Arial Narrow', 'Helvetica Neue Condensed', Impact, sans-serif",
 }

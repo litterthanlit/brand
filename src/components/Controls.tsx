@@ -9,9 +9,10 @@ interface ControlsProps {
   locked: Set<string>
   onChange: (key: string, value: ParamValue) => void
   onToggleLock: (key: string) => void
+  showLocks?: boolean
 }
 
-export function Controls({ params, values, locked, onChange, onToggleLock }: ControlsProps) {
+export function Controls({ params, values, locked, onChange, onToggleLock, showLocks = true }: ControlsProps) {
   return (
     <div className="divide-y divide-line">
       {params
@@ -22,6 +23,7 @@ export function Controls({ params, values, locked, onChange, onToggleLock }: Con
             param={param}
             value={values[param.key]}
             locked={locked.has(param.key)}
+            showLock={showLocks}
             onChange={(v) => onChange(param.key, v)}
             onToggleLock={() => onToggleLock(param.key)}
           />
@@ -34,13 +36,14 @@ interface RowProps {
   param: Param
   value: ParamValue
   locked: boolean
+  showLock: boolean
   onChange: (v: ParamValue) => void
   onToggleLock: () => void
 }
 
-function ControlRow({ param, value, locked, onChange, onToggleLock }: RowProps) {
+function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: RowProps) {
   const id = useId()
-  const lockable = param.type !== 'image' && param.randomize !== false
+  const lockable = showLock && param.type !== 'image' && param.randomize !== false
   const labelId = `${id}-label`
 
   let body: ReactNode

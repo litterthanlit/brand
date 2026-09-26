@@ -75,6 +75,16 @@ export interface RenderCtx {
 
 export type Category = 'Pattern' | 'Shape' | 'Texture' | 'Type' | 'Image'
 
+/** A layer-aware snapshot a tool can start from. Values merge over the tool's defaults. */
+export interface Preset {
+  name: string
+  format?: string
+  seed?: number
+  params?: ParamValues
+  finish?: ParamValues
+  type?: ParamValues
+}
+
 interface BaseTool {
   id: string
   name: string
@@ -84,6 +94,12 @@ interface BaseTool {
   animated?: boolean
   /** Loop length in seconds when animated. */
   duration?: number
+  /** Part of the "Raw" collection: abstract, grainy, editorial. */
+  raw?: boolean
+  /** Starting values for the global layers (merged over their defaults). */
+  defaults?: Omit<Preset, 'name' | 'params'>
+  /** One-click moods shown above the controls. */
+  presets?: Preset[]
 }
 
 export interface SvgTool extends BaseTool {

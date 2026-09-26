@@ -1,25 +1,46 @@
-import type { Param, ParamValues, RenderCtx, ToolDef } from '../tools/types'
+import type { Param, ParamValues, Preset, RenderCtx, ToolDef } from '../tools/types'
 import { isHex } from './color'
-import { getFormat } from './formats'
+import { FINISH_PARAMS, renderFinish } from './finish'
+import { FORMATS, getFormat } from './formats'
 import { createNoise, type Noise } from './noise'
 import { PALETTES } from './palettes'
 import { createRng, newSeed } from './random'
 import { wrapSvg } from './svg'
+import { renderTypeLayer, TYPE_PARAMS } from './typeLayer'
 
 export interface DocState {
   seed: number
   format: string
   params: ParamValues
+  /** Global grain / vignette layer. */
+  finish: ParamValues
+  /** Global editorial text layer. */
+  type: ParamValues
 }
 
-export function defaultParams(tool: ToolDef): ParamValues {
+export function defaultsFrom(params: Param[]): ParamValues {
   const out: ParamValues = {}
-  for (const param of tool.params) out[param.key] = Array.isArray(param.default) ? [...param.default] : param.default
+  for (const param of params) out[param.key] = Array.isArray(param.default) ? [...param.default] : param.default
   return out
 }
 
+export const defaultParams = (tool: ToolDef) => defaultsFrom(tool.params)
+
+/** Apply a preset (or a tool's layer defaults) over clean defaults. */
+export function stateFromPreset(tool: ToolDef, preset: Omit<Preset, 'name'> = {}, format?: string): DocState {
+  const base = tool.defaults ?? {}
+  const f = preset.format ?? format ?? base.format ?? 'square'
+  return {
+    seed: preset.seed ?? base.seed ?? 7,
+    format: FORMATS.some((x) => x.id === f) ? f : 'square',
+    params: sanitizeParams(tool, preset.params ?? {}),
+    finish: sanitizeValues(FINISH_PARAMS, { ...base.finish, ...preset.finish }),
+    type: sanitizeValues(TYPE_PARAMS, { ...base.type, ...preset.type }),
+  }
+}
+
 export function defaultState(tool: ToolDef): DocState {
-  return { seed: 7, format: 'square', params: defaultParams(tool) }
+  return stateFromPreset(tool)
 }
 
 function fitPalette(colors: string[], param: Extract<Param, { type: 'palette' }>) {
@@ -33,9 +54,11 @@ function fitPalette(colors: string[], param: Extract<Param, { type: 'palette' }>
 }
 
 /** Coerce any (possibly URL-sourced, possibly stale) param values into valid ones. */
-export function sanitizeParams(tool: ToolDef, raw: Partial<ParamValues>): ParamValues {
-  const out = defaultParams(tool)
-  for (const param of tool.params) {
+export const sanitizeParams = (tool: ToolDef, raw: Partial<ParamValues>) => sanitizeValues(tool.params, raw)
+
+export function sanitizeValues(params: Param[], raw: Partial<ParamValues>): ParamValues {
+  const out = defaultsFrom(params)
+  for (const param of params) {
     const v = raw[param.key]
     if (v === undefined) continue
     switch (param.type) {
@@ -138,11 +161,42 @@ export function sizeOf(state: DocState) {
   return { w: f.w, h: f.h }
 }
 
-/** Full standalone SVG document for an SVG tool. */
-export function renderSvg(tool: ToolDef, state: DocState, t = 0) {
+/** The tool's own artwork as a standalone SVG (no finish or type). */
+export function renderContentSvg(tool: ToolDef, state: DocState, t = 0) {
   if (tool.kind !== 'svg') throw new Error(`${tool.id} is not an SVG tool`)
   const { w, h } = sizeOf(state)
   return wrapSvg(w, h, tool.render(makeCtx(state, t, w, h)))
+}
+
+export interface Layers {
+  /** Grain layer SVG ('' when off) and how it blends onto the artwork. */
+  grain: string
+  blend: 'overlay' | 'normal'
+  /** Vignette + editorial type, drawn normally on top ('' when empty). */
+  overlay: string
+}
+
+/** Static layers above the artwork. They don't depend on animation time, so previews render them once. */
+export function renderLayers(state: DocState): Layers {
+  const { w, h } = sizeOf(state)
+  const uid = (++uidCounter).toString(36)
+  const f = renderFinish(state.finish, w, h, state.seed, uid)
+  const type = renderTypeLayer(state.type, w, h)
+  return {
+    grain: f.grain ? wrapSvg(w, h, f.grain) : '',
+    blend: f.blend,
+    overlay: f.vignette || type ? wrapSvg(w, h, f.vignette + type) : '',
+  }
+}
+
+/** Complete single-file SVG (artwork + grain + type) for SVG tools. */
+export function renderSvg(tool: ToolDef, state: DocState, t = 0) {
+  if (tool.kind !== 'svg') throw new Error(`${tool.id} is not an SVG tool`)
+  const { w, h } = sizeOf(state)
+  const uid = (++uidCounter).toString(36)
+  const f = renderFinish(state.finish, w, h, state.seed, uid)
+  const grain = f.grain ? (f.blend === 'overlay' ? `<g style="mix-blend-mode:overlay">${f.grain}</g>` : f.grain) : ''
+  return wrapSvg(w, h, tool.render(makeCtx(state, t, w, h)) + grain + f.vignette + renderTypeLayer(state.type, w, h))
 }
 
 /** Draw a canvas tool (or rasterised SVG is handled by export) into `canvas` at `scale` px per unit. */
