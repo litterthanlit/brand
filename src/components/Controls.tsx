@@ -14,7 +14,7 @@ interface ControlsProps {
 
 export function Controls({ params, values, locked, onChange, onToggleLock, showLocks = true }: ControlsProps) {
   return (
-    <div className="divide-y divide-line">
+    <div className="pt-1">
       {params
         .filter((param) => !param.when || param.when(values))
         .map((param) => (
@@ -56,11 +56,11 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
       const fill = ((v - param.min) / (param.max - param.min)) * 100
       const decimals = Math.max(0, (param.step.toString().split('.')[1] ?? '').length)
       aside = (
-        <span className="flex items-baseline gap-0.5 font-mono text-[12px] text-ink">
+        <span className="flex items-baseline gap-0.5 text-[12.5px] text-ink-2">
           <input
             type="number"
             aria-label={`${param.label} value`}
-            className="no-spinner w-14 rounded-md bg-transparent px-1 py-0.5 text-right tabular-nums outline-none hover:bg-paper focus:bg-paper"
+            className="no-spinner w-14 rounded-md bg-transparent px-1 py-0.5 text-right tabular-nums outline-none hover:bg-paper-2 hover:text-ink focus:bg-paper-2 focus:text-ink"
             min={param.min}
             max={param.max}
             step={param.step}
@@ -93,7 +93,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
       const short = param.options.length <= 4 && param.options.reduce((n, o) => n + o.label.length, 0) <= 26
       nativeLabel = !short
       body = short ? (
-        <div role="radiogroup" aria-labelledby={labelId} className="grid gap-1 rounded-lg bg-paper p-1" style={{ gridTemplateColumns: `repeat(${param.options.length}, minmax(0, 1fr))` }}>
+        <div role="radiogroup" aria-labelledby={labelId} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${param.options.length}, minmax(0, 1fr))` }}>
           {param.options.map((o) => {
             const active = o.value === value
             return (
@@ -103,9 +103,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
                 role="radio"
                 aria-checked={active}
                 onClick={() => onChange(o.value)}
-                className={`h-8 truncate rounded-md px-2 text-[12.5px] transition-colors duration-150 ${
-                  active ? 'bg-panel font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08),0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
-                }`}
+                className={`h-7 truncate rounded-md px-2 text-[12.5px] transition-colors duration-200 ${active ? 'bg-paper-2 text-ink' : 'text-ink-3 hover:text-ink-2'}`}
               >
                 {o.label}
               </button>
@@ -118,7 +116,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
             id={id}
             value={value as string}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-full appearance-none rounded-lg border border-line bg-panel pr-8 pl-3 text-[13px] transition-colors hover:border-line-2"
+            className="h-8 w-full appearance-none rounded-md bg-paper-2 pr-8 pl-2.5 text-[13px] text-ink transition-colors hover:bg-line-2"
           >
             {param.options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -142,10 +140,10 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
           aria-checked={on}
           aria-labelledby={labelId}
           onClick={() => onChange(!on)}
-          className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${on ? 'bg-ink' : 'bg-line-2'}`}
+          className={`relative h-4 w-7 rounded-full transition-colors duration-200 ${on ? 'bg-ink' : 'bg-line-2'}`}
         >
           <span
-            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-panel shadow-sm transition-transform duration-200 ease-out-soft ${on ? 'translate-x-4' : ''}`}
+            className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full transition-[transform,background-color] duration-200 ease-out-soft ${on ? 'translate-x-3 bg-paper' : 'bg-ink-3'}`}
           />
         </button>
       )
@@ -160,7 +158,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
           value={value as string}
           maxLength={param.maxLength}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-full rounded-lg border border-line bg-panel px-3 text-[13px] transition-colors outline-none hover:border-line-2 focus:border-ink"
+          className="h-8 w-full rounded-md bg-paper-2 px-2.5 text-[13px] text-ink transition-colors outline-none hover:bg-line-2 focus:bg-line-2"
         />
       )
       break
@@ -176,7 +174,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
   }
 
   return (
-    <div className="group px-5 py-3.5">
+    <div className="group px-5 py-2.5">
       <div className={`flex min-h-6 items-center justify-between gap-3 ${body ? 'mb-2' : ''}`}>
         {nativeLabel ? (
           <label id={labelId} htmlFor={id} className="text-[13px] text-ink-2">
@@ -196,7 +194,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
               aria-pressed={locked}
               aria-label={`${locked ? 'Unlock' : 'Lock'} ${param.label} when randomising`}
               title={locked ? 'Locked: Randomize keeps this' : 'Lock to keep when randomising'}
-              className={`grid h-6 w-6 place-items-center rounded-md transition-all duration-150 hover:bg-paper ${
+              className={`grid h-6 w-6 place-items-center rounded-md transition-all duration-150 hover:bg-paper-2 ${
                 locked ? 'text-accent-ink opacity-100' : 'text-ink-3 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
               }`}
             >
@@ -214,7 +212,7 @@ function ColorSwatch({ label, value, onChange, onRemove }: { label: string; valu
   return (
     <div className="group/sw relative">
       <label
-        className="relative block h-10 w-10 cursor-pointer overflow-hidden rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)] transition-transform duration-150 hover:scale-105 focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2"
+        className="relative block h-8 w-8 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-transform duration-200 hover:scale-105 focus-within:ring-1 focus-within:ring-ink focus-within:ring-offset-2 focus-within:ring-offset-paper"
         style={{ background: value }}
         title={value.toUpperCase()}
       >
@@ -228,7 +226,7 @@ function ColorSwatch({ label, value, onChange, onRemove }: { label: string; valu
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${label}`}
-          className="absolute -top-1.5 -right-1.5 hidden h-4 w-4 place-items-center rounded-full bg-ink text-white group-hover/sw:grid focus-visible:grid"
+          className="absolute -top-1 -right-1 hidden h-4 w-4 place-items-center rounded-full bg-ink text-paper group-hover/sw:grid focus-visible:grid"
         >
           <CloseIcon size={9} strokeWidth={3} />
         </button>
@@ -263,7 +261,7 @@ function PaletteEditor({ param, value, onChange }: { param: Extract<Param, { typ
             type="button"
             onClick={() => onChange([...value, value[value.length - 1]])}
             aria-label="Add colour"
-            className="grid h-10 w-10 place-items-center rounded-lg border border-dashed border-line-2 text-ink-3 transition-colors hover:border-ink hover:text-ink"
+            className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-line-2 text-ink-3 transition-colors hover:border-ink-3 hover:text-ink"
           >
             <PlusIcon size={14} />
           </button>
@@ -273,7 +271,7 @@ function PaletteEditor({ param, value, onChange }: { param: Extract<Param, { typ
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="mt-3 text-[12px] font-medium text-ink-2 underline decoration-line-2 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+        className="mt-3 text-[12px] text-ink-3 transition-colors hover:text-ink"
       >
         {open ? 'Hide presets' : `Browse ${PALETTES.length} presets`}
       </button>
@@ -284,14 +282,14 @@ function PaletteEditor({ param, value, onChange }: { param: Extract<Param, { typ
               <button
                 type="button"
                 onClick={() => onChange(fit(pl.colors))}
-                className="group/p w-full rounded-lg border border-line bg-panel p-1.5 text-left transition-colors hover:border-ink"
+                className="group/p w-full rounded-md p-1.5 text-left transition-colors hover:bg-paper-2"
               >
-                <span className="flex h-6 overflow-hidden rounded-md">
+                <span className="flex h-5 overflow-hidden rounded-sm">
                   {pl.colors.map((c, i) => (
                     <span key={i} className="flex-1" style={{ background: c }} />
                   ))}
                 </span>
-                <span className="mt-1 block truncate px-0.5 text-[11px] text-ink-2 group-hover/p:text-ink">{pl.name}</span>
+                <span className="mt-1 block truncate px-0.5 text-[11.5px] text-ink-3 group-hover/p:text-ink-2">{pl.name}</span>
               </button>
             </li>
           ))}
@@ -332,21 +330,21 @@ function ImageInput({ value, onChange }: { value: ImageBitmap | null; onChange: 
           setDragging(false)
           load(e.dataTransfer.files[0])
         }}
-        className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed px-3 py-3 text-[13px] transition-colors focus-within:border-ink ${
-          dragging ? 'border-accent bg-accent/5' : 'border-line-2 hover:border-ink'
+        className={`flex cursor-pointer items-center gap-3 rounded-md border border-dashed px-3 py-3 text-[13px] transition-colors focus-within:border-ink-3 ${
+          dragging ? 'border-ink-2 bg-paper-2' : 'border-line-2 hover:border-ink-3'
         }`}
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-paper text-ink-2">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-paper-2 text-ink-2">
           <ImageIcon size={15} />
         </span>
         <span className="min-w-0">
-          <span className="block font-medium text-ink">{value ? `Image loaded · ${value.width}×${value.height}` : 'Drop or choose an image'}</span>
+          <span className="block text-ink">{value ? `Image loaded · ${value.width}×${value.height}` : 'Drop or choose an image'}</span>
           <span className="block text-[12px] text-ink-3">Stays on your device, never uploaded</span>
         </span>
         <input id={id} type="file" accept="image/*" className="sr-only" onChange={(e) => load(e.target.files?.[0])} />
       </label>
       {value && (
-        <button type="button" onClick={() => onChange(null)} className="mt-2 text-[12px] text-ink-2 underline underline-offset-4 hover:text-ink">
+        <button type="button" onClick={() => onChange(null)} className="mt-2 text-[12px] text-ink-3 transition-colors hover:text-ink">
           Remove image
         </button>
       )}

@@ -119,9 +119,9 @@ export function ExportMenu({ tool, state, notify, onCopyLink }: ExportMenuProps)
         aria-expanded={open}
         disabled={!!busy}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-[13px] font-medium text-white transition-[transform,background-color] duration-150 hover:bg-black active:scale-[0.97] disabled:opacity-70"
+        className="inline-flex h-8 items-center gap-2 rounded-full border border-line-2 px-3.5 text-[13px] text-ink transition-colors duration-200 hover:bg-paper-2 disabled:opacity-60"
       >
-        <DownloadIcon size={15} />
+        <DownloadIcon size={14} />
         <span aria-live="polite">{busy ?? 'Export'}</span>
       </button>
       {open && (
@@ -129,21 +129,21 @@ export function ExportMenu({ tool, state, notify, onCopyLink }: ExportMenuProps)
           role="menu"
           aria-label="Export options"
           onKeyDown={onMenuKey}
-          className="absolute top-[calc(100%+8px)] right-0 z-30 w-72 origin-top-right animate-[menu-in_160ms_var(--ease-out-soft)] rounded-2xl border border-line bg-panel/95 p-1.5 shadow-[0_24px_48px_-12px_rgba(17,17,17,0.18),0_2px_6px_rgba(17,17,17,0.06)] backdrop-blur-xl"
+          className="absolute top-[calc(100%+8px)] right-0 z-30 w-72 origin-top-right animate-[menu-in_160ms_var(--ease-out-soft)] rounded-xl border border-line-2 bg-paper-2/95 p-1 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.8)] backdrop-blur-2xl"
         >
           {groups.map((g, gi) => (
-            <div key={g.title} className={gi ? 'mt-1 border-t border-line pt-1' : ''}>
-              <p className="px-3 pt-2 pb-1 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">{g.title}</p>
+            <div key={g.title} className={gi ? 'mt-1 border-t border-line-2 pt-1' : ''}>
+              <p className="px-2.5 pt-2 pb-1 text-[12px] text-ink-3">{g.title}</p>
               {g.items.map((item) => (
                 <button
                   key={item.label}
                   type="button"
                   role="menuitem"
                   onClick={() => run(item)}
-                  className="flex w-full items-baseline justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-colors hover:bg-paper focus-visible:bg-paper focus-visible:outline-none"
+                  className="flex w-full items-baseline justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-line-2 focus-visible:bg-line-2 focus-visible:outline-none"
                 >
-                  <span className="font-medium text-ink">{item.label}</span>
-                  <span className="truncate font-mono text-[11px] text-ink-3">{item.hint}</span>
+                  <span className="shrink-0 whitespace-nowrap text-ink">{item.label}</span>
+                  <span className="truncate text-[12px] text-ink-3 tabular-nums">{item.hint}</span>
                 </button>
               ))}
             </div>

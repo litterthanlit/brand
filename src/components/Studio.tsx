@@ -11,6 +11,7 @@ import type { ParamValue, Preset, ToolDef } from '../tools/types'
 import { Controls } from './Controls'
 import { ExportMenu } from './ExportMenu'
 import { ArrowLeftIcon, DiceIcon, PauseIcon, PlayIcon, RedoIcon, ResetIcon, UndoIcon } from './Icons'
+import { Halo } from './Halo'
 import { Preview } from './Preview'
 import { Toast, useToast } from './Toast'
 
@@ -42,7 +43,7 @@ function PresetSwatch({ tool, preset }: { tool: ToolDef; preset: Preset }) {
   const key = tool.params.find((p) => p.type === 'palette')?.key
   const colors = (key && (preset.params?.[key] as string[] | undefined)) || (key && (tool.params.find((p) => p.key === key)?.default as string[])) || []
   return (
-    <span aria-hidden="true" className="flex h-5 w-5 overflow-hidden rounded-full ring-1 ring-black/10">
+    <span aria-hidden="true" className="flex h-5 w-5 overflow-hidden rounded-full ring-1 ring-white/10">
       {colors.slice(0, 3).map((c, i) => (
         <span key={i} className="flex-1" style={{ background: c }} />
       ))}
@@ -167,34 +168,29 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
     }
   }, [state, tool.id, notify])
 
+
   const index = TOOLS.findIndex((t) => t.id === tool.id)
   const hasImageParam = tool.params.some((p) => p.type === 'image')
+  const { w, h } = sizeOf(state)
 
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
-      {/* Top bar */}
-      <header className="relative z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-paper/80 px-4 backdrop-blur-md sm:px-5">
-        <a
-          href="#/"
-          className="inline-flex h-9 items-center gap-2 rounded-full pr-3 pl-2 text-[13px] text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink"
-        >
-          <ArrowLeftIcon size={15} />
-          <span className="hidden sm:inline">All tools</span>
+      <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 px-4 text-[13px] sm:px-5">
+        <a href="#/" className="inline-flex items-center gap-1.5 text-ink-3 transition-colors duration-200 hover:text-ink">
+          <ArrowLeftIcon size={14} />
+          <span className="hidden sm:inline">Index</span>
         </a>
-        <span aria-hidden="true" className="h-5 w-px bg-line" />
-        <div className="flex min-w-0 items-baseline gap-2">
-          <span className="font-mono text-[11px] text-ink-3">{String(index + 1).padStart(2, '0')}</span>
-          <h1 className="truncate text-[15px] font-medium tracking-[-0.01em]">{tool.name}</h1>
-          <span className="hidden font-mono text-[11px] tracking-[0.06em] text-ink-3 uppercase md:inline">{tool.category}</span>
+        <div className="flex min-w-0 items-baseline gap-3">
+          <span className="text-ink-3 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+          <h1 className="truncate font-normal text-ink">{tool.name}</h1>
         </div>
         <div className="ml-auto">
           <ExportMenu tool={tool} state={state} notify={notify} onCopyLink={copyLink} />
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[208px_minmax(0,1fr)_340px]">
-        {/* Tool index */}
-        <nav aria-label="Tools" className="hidden min-h-0 overflow-y-auto border-r border-line py-4 lg:block">
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[200px_minmax(0,1fr)_320px]">
+        <nav aria-label="Tools" className="hidden min-h-0 overflow-y-auto py-3 lg:block">
           <ol>
             {TOOLS.map((t, i) => {
               const active = t.id === tool.id
@@ -203,11 +199,10 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                   <a
                     href={toolHref(t.id)}
                     aria-current={active ? 'page' : undefined}
-                    className={`group flex items-baseline gap-3 px-5 py-1.5 text-[13px] transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+                    className={`flex items-baseline gap-3 px-5 py-1 text-[13px] transition-colors duration-200 ${active ? 'text-ink' : 'text-ink-3 hover:text-ink-2'}`}
                   >
-                    <span className={`font-mono text-[10.5px] ${active ? 'text-accent-ink' : 'text-ink-3'}`}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className={active ? 'font-medium' : ''}>{t.name}</span>
-                    {active && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 self-center rounded-full bg-accent" />}
+                    <span className="w-4 text-[12px] tabular-nums opacity-70">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="truncate">{t.name}</span>
                   </a>
                 </li>
               )
@@ -215,8 +210,8 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
           </ol>
         </nav>
 
-        {/* Stage */}
         <main className="flex min-h-0 flex-col">
+          <Stage tool={tool} state={renderState} playing={playing} phaseRef={phaseRef} />
           <Toolbar
             animated={!!tool.animated}
             playing={playing}
@@ -226,19 +221,14 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
             onRedo={redo}
             canUndo={canUndo}
             canRedo={canRedo}
+            meta={`${w} × ${h} · seed ${state.seed}${hasImageParam ? ' · stays on your device' : ''}`}
           />
-          <Stage tool={tool} state={renderState} playing={playing} phaseRef={phaseRef} />
-          <p className="shrink-0 px-5 pb-4 text-center font-mono text-[11px] text-ink-3">
-            {sizeOf(state).w} × {sizeOf(state).h} · seed {state.seed}
-            {hasImageParam && ' · images stay on your device'}
-          </p>
         </main>
 
-        {/* Controls */}
-        <aside aria-label={`${tool.name} settings`} className="min-h-0 border-t border-line bg-panel lg:overflow-y-auto lg:border-t-0 lg:border-l">
+        <aside aria-label={`${tool.name} settings`} className="min-h-0 border-t border-line lg:overflow-y-auto lg:border-t-0 lg:border-l">
           {tool.presets && tool.presets.length > 0 && (
-            <section aria-labelledby="moods-heading" className="border-b border-line px-5 pt-4 pb-4">
-              <h2 id="moods-heading" className="mb-2.5 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+            <section aria-labelledby="moods-heading" className="px-5 pt-5 pb-4">
+              <h2 id="moods-heading" className="mb-3 text-[12px] font-normal text-ink-3">
                 Moods
               </h2>
               <div className="flex flex-wrap gap-1.5">
@@ -247,7 +237,7 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                     key={preset.name}
                     type="button"
                     onClick={() => applyPreset(preset)}
-                    className="inline-flex h-8 items-center gap-2 rounded-full border border-line-2 pr-3 pl-1.5 text-[12.5px] text-ink transition-[border-color,transform] duration-150 hover:border-ink active:scale-[0.97]"
+                    className="inline-flex h-7 items-center gap-2 rounded-full bg-paper-2 pr-3 pl-1 text-[12.5px] text-ink-2 transition-colors duration-200 hover:bg-line-2 hover:text-ink"
                   >
                     <PresetSwatch tool={tool} preset={preset} />
                     {preset.name}
@@ -257,7 +247,7 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
             </section>
           )}
 
-          <div role="tablist" aria-label="Settings" className="sticky top-0 z-10 flex gap-1 border-b border-line bg-panel/95 px-3 pt-2 backdrop-blur-md">
+          <div role="tablist" aria-label="Settings" className="sticky top-0 z-10 flex gap-5 border-b border-line bg-paper/90 px-5 backdrop-blur-xl">
             {TABS.map((t) => {
               const active = t.id === tab
               return (
@@ -279,24 +269,24 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                     setTab(next.id)
                     document.getElementById(`tab-${next.id}`)?.focus()
                   }}
-                  className={`relative h-10 px-3 text-[13px] transition-colors ${active ? 'font-medium text-ink' : 'text-ink-2 hover:text-ink'}`}
+                  className={`relative h-10 text-[13px] transition-colors duration-200 ${active ? 'text-ink' : 'text-ink-3 hover:text-ink-2'}`}
                 >
                   {t.label}
-                  {t.id !== 'generator' && layerActive(t.id) && <span aria-label="(on)" className="ml-1.5 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-accent" />}
-                  {active && <span aria-hidden="true" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink" />}
+                  {t.id !== 'generator' && layerActive(t.id) && <span aria-label="(on)" className="ml-1.5 inline-block h-1 w-1 -translate-y-0.5 rounded-full bg-accent" />}
+                  {active && <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-px bg-ink" />}
                 </button>
               )
             })}
           </div>
 
-          <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-8">
+          <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-10">
             {tab === 'generator' && (
               <>
-                <section aria-labelledby="canvas-heading" className="border-b border-line px-5 py-4">
-                  <h2 id="canvas-heading" className="mb-3 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
-                    Canvas
+                <section aria-labelledby="canvas-heading" className="px-5 pt-5 pb-3">
+                  <h2 id="canvas-heading" className="mb-3 text-[12px] font-normal text-ink-3">
+                    Format
                   </h2>
-                  <div role="radiogroup" aria-label="Format" className="grid grid-cols-5 gap-1 rounded-lg bg-paper p-1">
+                  <div role="radiogroup" aria-label="Format" className="grid grid-cols-5 gap-1">
                     {FORMATS.map((f) => {
                       const active = f.id === state.format
                       return (
@@ -307,14 +297,14 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                           aria-checked={active}
                           title={`${f.hint} · ${f.w}×${f.h}`}
                           onClick={() => replace((s) => ({ ...s, format: f.id }))}
-                          className={`flex h-12 flex-col items-center justify-center gap-1 rounded-md text-[11.5px] transition-colors ${
-                            active ? 'bg-panel font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08),0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
+                          className={`flex h-11 flex-col items-center justify-center gap-1.5 rounded-md text-[11.5px] transition-colors duration-200 ${
+                            active ? 'bg-paper-2 text-ink' : 'text-ink-3 hover:text-ink-2'
                           }`}
                         >
                           <span
                             aria-hidden="true"
-                            className={`block rounded-[2px] border ${active ? 'border-ink' : 'border-ink-3'}`}
-                            style={{ width: (f.w / Math.max(f.w, f.h)) * 16, height: (f.h / Math.max(f.w, f.h)) * 16 }}
+                            className="block rounded-[1.5px] border border-current"
+                            style={{ width: (f.w / Math.max(f.w, f.h)) * 14, height: (f.h / Math.max(f.w, f.h)) * 14 }}
                           />
                           {f.label}
                         </button>
@@ -322,8 +312,8 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                     })}
                   </div>
                   <p className="mt-2 text-[12px] text-ink-3">{getFormat(state.format).hint}</p>
-                  <div className="mt-4 flex items-center gap-2">
-                    <label htmlFor="seed" className="text-[13px] text-ink-2">
+                  <div className="mt-4 flex items-center gap-1">
+                    <label htmlFor="seed" className="mr-auto text-[13px] text-ink-2">
                       Seed
                     </label>
                     <input
@@ -334,23 +324,23 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                         const n = e.target.valueAsNumber
                         if (Number.isFinite(n)) replace((s) => ({ ...s, seed: Math.max(0, Math.floor(n)) }))
                       }}
-                      className="no-spinner ml-auto h-8 w-24 rounded-md border border-line bg-panel px-2 text-right font-mono text-[12px] tabular-nums outline-none hover:border-line-2 focus:border-ink"
+                      className="no-spinner h-7 w-20 rounded-md bg-transparent px-1.5 text-right text-[13px] text-ink tabular-nums outline-none hover:bg-paper-2 focus:bg-paper-2"
                     />
                     <IconButton label="New seed" onClick={shuffleSeed}>
-                      <DiceIcon size={15} />
+                      <DiceIcon size={14} />
                     </IconButton>
                     <IconButton label="Reset to defaults" onClick={reset}>
-                      <ResetIcon size={15} />
+                      <ResetIcon size={14} />
                     </IconButton>
                   </div>
                 </section>
-                <section aria-labelledby="params-heading">
-                  <div className="flex items-baseline justify-between px-5 pt-4 pb-1">
-                    <h2 id="params-heading" className="font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+                <section aria-labelledby="params-heading" className="mt-2 border-t border-line">
+                  <div className="flex items-baseline justify-between px-5 pt-5 pb-1">
+                    <h2 id="params-heading" className="text-[12px] font-normal text-ink-3">
                       Parameters
                     </h2>
                     {locked.size > 0 && (
-                      <button type="button" onClick={() => setLocked(new Set())} className="text-[12px] text-ink-2 underline underline-offset-4 hover:text-ink">
+                      <button type="button" onClick={() => setLocked(new Set())} className="text-[12px] text-ink-3 transition-colors hover:text-ink">
                         Unlock all ({locked.size})
                       </button>
                     )}
@@ -361,13 +351,13 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
             )}
             {tab === 'type' && (
               <section aria-label="Type layer">
-                <p className="px-5 pt-4 text-[12.5px] leading-[1.5] text-ink-3">Editorial text set over the artwork. It's embedded in every export, and Randomize never changes it.</p>
+                <p className="px-5 pt-5 pb-1 text-[12.5px] leading-[1.55] text-ink-3">Text set over the artwork. Included in every export; Randomize leaves it alone.</p>
                 <Controls params={TYPE_PARAMS} values={state.type} locked={NO_LOCKS} showLocks={false} onChange={(k, v) => setLayer('type', k, v)} onToggleLock={() => {}} />
               </section>
             )}
             {tab === 'finish' && (
               <section aria-label="Finish layer">
-                <p className="px-5 pt-4 text-[12.5px] leading-[1.5] text-ink-3">Print texture over any tool. Grain is baked into SVG, PNG and video exports.</p>
+                <p className="px-5 pt-5 pb-1 text-[12.5px] leading-[1.55] text-ink-3">Grain and vignette over any tool, baked into every export.</p>
                 <Controls params={FINISH_PARAMS} values={state.finish} locked={NO_LOCKS} showLocks={false} onChange={(k, v) => setLayer('finish', k, v)} onToggleLock={() => {}} />
               </section>
             )}
@@ -388,7 +378,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-full text-ink-2 transition-[color,background-color,transform] duration-150 hover:bg-paper-2 hover:text-ink active:scale-95 disabled:pointer-events-none disabled:opacity-35"
+      className="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition-[color,background-color] duration-200 hover:bg-paper-2 hover:text-ink disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>
@@ -404,53 +394,49 @@ interface ToolbarProps {
   onRedo: () => void
   canUndo: boolean
   canRedo: boolean
+  meta: string
 }
 
-function Toolbar({ animated, playing, onTogglePlay, onRandomize, onUndo, onRedo, canUndo, canRedo }: ToolbarProps) {
+/** One quiet row under the artwork: history, the essentials, and the file's facts. */
+function Toolbar({ animated, playing, onTogglePlay, onRandomize, onUndo, onRedo, canUndo, canRedo, meta }: ToolbarProps) {
   const [spin, setSpin] = useState(0)
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-4 sm:px-5">
-      <div className="flex items-center gap-0.5 rounded-full border border-line bg-panel p-0.5">
+    <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pt-1 pb-4 sm:px-5 sm:pb-5">
+      <div className="flex items-center">
         <IconButton label="Previous result (←)" onClick={onUndo} disabled={!canUndo}>
-          <UndoIcon size={15} />
+          <UndoIcon size={14} />
         </IconButton>
         <IconButton label="Next result (→)" onClick={onRedo} disabled={!canRedo}>
-          <RedoIcon size={15} />
+          <RedoIcon size={14} />
         </IconButton>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {animated && (
-          <button
-            type="button"
-            onClick={onTogglePlay}
-            aria-pressed={playing}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-line bg-panel px-3.5 text-[13px] font-medium text-ink transition-[background-color,transform] duration-150 hover:bg-paper-2 active:scale-[0.97]"
-          >
+          <IconButton label={playing ? 'Pause (Space)' : 'Play (Space)'} onClick={onTogglePlay}>
             {playing ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
-            <span>{playing ? 'Pause' : 'Animate'}</span>
-            <kbd className="hidden rounded border border-line px-1 font-mono text-[10px] text-ink-3 sm:inline">Space</kbd>
-          </button>
+          </IconButton>
         )}
         <button
           type="button"
+          title="Randomize (R)"
           onClick={() => {
             setSpin((s) => s + 1)
             onRandomize()
           }}
-          className="inline-flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[13px] font-medium text-white shadow-[0_6px_16px_-6px_rgba(255,79,18,0.7)] transition-[background-color,transform] duration-150 hover:bg-[#f04408] active:scale-[0.97]"
+          className="inline-flex h-8 items-center gap-2 rounded-full bg-ink px-3.5 text-[13px] font-medium text-paper transition-opacity duration-200 hover:opacity-85"
         >
-          <span className="inline-block transition-transform duration-500 ease-out-soft" style={{ transform: `rotate(${spin * 180}deg)` }}>
-            <DiceIcon size={15} />
+          <span className="inline-block transition-transform duration-700 ease-out-soft" style={{ transform: `rotate(${spin * 180}deg)` }}>
+            <DiceIcon size={14} />
           </span>
           Randomize
-          <kbd className="hidden rounded border border-white/40 px-1 font-mono text-[10px] text-white/85 sm:inline">R</kbd>
         </button>
       </div>
+      <p className="hidden truncate text-right text-[12px] text-ink-3 tabular-nums sm:block">{meta}</p>
     </div>
   )
 }
 
-/** Fits the artwork into the available stage area at its true aspect ratio. */
+/** The artwork hangs in a dark room, lit only by itself. */
 function Stage({ tool, state, playing, phaseRef }: { tool: ToolDef; state: DocState; playing: boolean; phaseRef: React.MutableRefObject<number> }) {
   const areaRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
@@ -461,7 +447,7 @@ function Stage({ tool, state, playing, phaseRef }: { tool: ToolDef; state: DocSt
     if (!el) return
     const measure = () => {
       const r = el.getBoundingClientRect()
-      const pad = window.innerWidth < 640 ? 16 : 40
+      const pad = window.innerWidth < 640 ? 24 : 64
       const aw = Math.max(0, r.width - pad * 2)
       const ah = Math.max(0, r.height - pad * 2)
       const s = Math.min(aw / w, ah / h)
@@ -479,13 +465,12 @@ function Stage({ tool, state, playing, phaseRef }: { tool: ToolDef; state: DocSt
   )
 
   return (
-    <div ref={areaRef} className="stage-bg relative m-4 h-[62vh] min-h-[320px] overflow-hidden rounded-2xl border border-line sm:m-5 lg:h-auto lg:min-h-0 lg:flex-1">
+    <div ref={areaRef} className="relative h-[62vh] min-h-[320px] overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1">
+      {/* The glow fills the room and fades out before the walls, so it never shows an edge */}
+      <Halo tool={tool} state={state} className="inset-0 opacity-50 [mask-image:radial-gradient(closest-side,#000_35%,transparent)]" />
       <div className="absolute inset-0 grid place-items-center">
         {box.w > 0 && (
-          <div
-            className="overflow-hidden rounded-[3px] bg-panel shadow-[0_1px_2px_rgba(17,17,17,0.06),0_24px_60px_-20px_rgba(17,17,17,0.28)] ring-1 ring-black/5"
-            style={{ width: box.w, height: box.h }}
-          >
+          <div className="relative animate-[dawn_1400ms_var(--ease-out-soft)] overflow-hidden rounded-[2px]" style={{ width: box.w, height: box.h }}>
             {preview}
           </div>
         )}
@@ -497,7 +482,7 @@ function Stage({ tool, state, playing, phaseRef }: { tool: ToolDef; state: DocSt
 function MobileToolSwitcher({ current }: { current: string }) {
   return (
     <div className="border-t border-line px-5 py-5 lg:hidden">
-      <label htmlFor="tool-switch" className="mb-2 block font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+      <label htmlFor="tool-switch" className="mb-2 block text-[12px] text-ink-3">
         Switch tool
       </label>
       <select
@@ -506,7 +491,7 @@ function MobileToolSwitcher({ current }: { current: string }) {
         onChange={(e) => {
           location.hash = toolHref(e.target.value)
         }}
-        className="h-10 w-full rounded-lg border border-line bg-panel px-3 text-[14px]"
+        className="h-10 w-full rounded-md border border-line-2 bg-paper-2 px-3 text-[14px] text-ink"
       >
         {TOOLS.map((t, i) => (
           <option key={t.id} value={t.id}>
