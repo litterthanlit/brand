@@ -5,6 +5,7 @@ import { blob } from './blob'
 import { dither } from './dither'
 import { flowField } from './flowField'
 import { halftone } from './halftone'
+import { inkBleed } from './inkBleed'
 import { lineSweep } from './lineSweep'
 import { longExposure } from './longExposure'
 import { meshGradient } from './meshGradient'
@@ -22,7 +23,7 @@ import { waves } from './waves'
 
 /** Order here is the order in the gallery and sidebar. Add new tools to this list. */
 export const TOOLS: ToolDef[] = [
-  longExposure, lineSweep, particleStream, blurEcho, screenOrb, photogram, barType,
+  inkBleed, longExposure, lineSweep, particleStream, blurEcho, screenOrb, photogram, barType,
   halftone, meshGradient, dither, stamp, bauhaus, flowField, truchet, blob, topography, typeRepeat, sunburst, waves, rings,
 ]
 

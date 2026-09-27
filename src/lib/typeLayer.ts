@@ -20,10 +20,11 @@ export const TYPE_PARAMS: Param[] = [
     type: 'select', key: 'font', label: 'Typeface', default: 'sans',
     options: [{ value: 'sans', label: 'Grotesk' }, { value: 'mono', label: 'Mono' }],
   },
-  { type: 'number', key: 'size', label: 'Size', min: 0.5, max: 2.5, step: 0.05, default: 1 },
+  { type: 'number', key: 'size', label: 'Size', min: 0.5, max: 6, step: 0.05, default: 1 },
   { type: 'number', key: 'measure', label: 'Column width', min: 0.2, max: 0.9, step: 0.01, default: 0.4 },
   { type: 'number', key: 'margin', label: 'Margin', min: 0.02, max: 0.15, step: 0.005, default: 0.055 },
   { type: 'boolean', key: 'uppercase', label: 'Uppercase', default: true },
+  { type: 'number', key: 'rough', label: 'Ink bleed', min: 0, max: 1, step: 0.01, default: 0 },
   { type: 'color', key: 'color', label: 'Text colour', default: '#EDEDED' },
   { type: 'color', key: 'labelBg', label: 'Label highlight', default: '#E4E4E4' },
   { type: 'color', key: 'labelInk', label: 'Label text', default: '#111111' },
@@ -49,9 +50,34 @@ interface Block {
   draw: (x: number, top: number, anchor: 'start' | 'middle' | 'end') => string
 }
 
+/**
+ * Ragged, soaked-in letter edges: fine turbulence roughens the outline, then a blur
+ * re-thresholded through the alpha channel swells it like ink wicking into paper.
+ * The id is derived from the inputs, so identical filters in one document can share it.
+ */
+function inkFilter(rough: number, u: number) {
+  const id = `ink-type-${Math.round(rough * 100)}-${Math.round(u * 1000)}`
+  const def =
+    `<filter id="${id}" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB">` +
+    `<feTurbulence type="fractalNoise" baseFrequency="${r2(0.22 / u)}" numOctaves="3" seed="3" result="n"/>` +
+    `<feDisplacementMap in="SourceGraphic" in2="n" scale="${r2((1.5 + rough * 7) * u)}" xChannelSelector="R" yChannelSelector="G" result="d"/>` +
+    `<feGaussianBlur in="d" stdDeviation="${r2((0.4 + rough * 1.4) * u)}"/>` +
+    `<feComponentTransfer><feFuncA type="linear" slope="${r2(2.2 + rough * 1.5)}" intercept="${r2(-0.45 - rough * 0.2)}"/></feComponentTransfer>` +
+    `</filter>`
+  return { id, def }
+}
+
 /** Inner SVG markup for the text layer ('' when disabled). */
 export function renderTypeLayer(p: ParamValues, w: number, h: number) {
   if (!p.enabled) return ''
+  const markup = renderText(p, w, h)
+  const rough = (p.rough as number) ?? 0
+  if (rough <= 0) return markup
+  const f = inkFilter(rough, Math.min(w, h) / 1080)
+  return `${f.def}<g filter="url(#${f.id})">${markup}</g>`
+}
+
+function renderText(p: ParamValues, w: number, h: number) {
   const u = Math.min(w, h) / 1080
   const scale = (p.size as number) ?? 1
   const upper = p.uppercase !== false
@@ -105,7 +131,8 @@ export function renderTypeLayer(p: ParamValues, w: number, h: number) {
   const body = tx(p.body)
   const label = tx(p.label)
   const caption = tx(p.caption)
-  const cfs = 15 * u * scale
+  // captions stop growing at poster sizes, so a huge title can keep a small colophon
+  const cfs = 15 * u * Math.min(scale, 2.5)
   const captionMarkup = (x: number, y: number, anchor: string) =>
     caption
       ? `<text font-family="${escapeXml(monoFamily)}" font-size="${r2(cfs)}" font-weight="400" fill="${color}" text-anchor="${anchor}" x="${r2(x)}" y="${r2(y)}" letter-spacing="${r2(cfs * 0.04)}">${escapeXml(caption)}</text>`
