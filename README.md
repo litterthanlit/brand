@@ -10,37 +10,38 @@ Abstract, grainy, editorial generators, each with one-click **moods**.
 
 | # | Tool | What it makes | Output | Motion |
 |---|------|---------------|--------|--------|
-| 01 | Long Exposure | Silky, motion-blurred water (or any photo) via a slow-shutter flow smear | PNG | ✓ |
-| 02 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
-| 03 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
-| 04 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
-| 05 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
-| 06 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
-| 07 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
+| 01 | Ink Bleed | Saturated ink blooming into paper: fibrous feathered edges, hot/deep thermal cores, blots, splats and brush sweeps | PNG | ✓ |
+| 02 | Long Exposure | Silky, motion-blurred water (or any photo) via a slow-shutter flow smear | PNG | ✓ |
+| 03 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
+| 04 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
+| 05 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
+| 06 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
+| 07 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
+| 08 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
 
 ### Classics
 | # | Tool | Category | Output | Motion |
 |---|------|----------|--------|--------|
-| 08 | Halftone | Pattern | SVG / PNG | ✓ |
-| 09 | Mesh Gradient | Texture | PNG | ✓ |
-| 10 | Dither (upload your own image) | Image | PNG | |
-| 11 | Stamp | Type | SVG / PNG | ✓ |
-| 12 | Bauhaus Grid | Shape | SVG / PNG | |
-| 13 | Flow Field | Texture | SVG / PNG | ✓ |
-| 14 | Truchet | Pattern | SVG / PNG | |
-| 15 | Blob | Shape | SVG / PNG | ✓ |
-| 16 | Topography | Texture | SVG / PNG | ✓ |
-| 17 | Type Repeat | Type | SVG / PNG | ✓ |
-| 18 | Sunburst | Pattern | SVG / PNG | ✓ |
-| 19 | Wave Lines | Pattern | SVG / PNG | ✓ |
-| 20 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
+| 09 | Halftone | Pattern | SVG / PNG | ✓ |
+| 10 | Mesh Gradient | Texture | PNG | ✓ |
+| 11 | Dither (upload your own image) | Image | PNG | |
+| 12 | Stamp | Type | SVG / PNG | ✓ |
+| 13 | Bauhaus Grid | Shape | SVG / PNG | |
+| 14 | Flow Field | Texture | SVG / PNG | ✓ |
+| 15 | Truchet | Pattern | SVG / PNG | |
+| 16 | Blob | Shape | SVG / PNG | ✓ |
+| 17 | Topography | Texture | SVG / PNG | ✓ |
+| 18 | Type Repeat | Type | SVG / PNG | ✓ |
+| 19 | Sunburst | Pattern | SVG / PNG | ✓ |
+| 20 | Wave Lines | Pattern | SVG / PNG | ✓ |
+| 21 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
 
 Every tool supports:
 
 - **Randomize** (`R`), with per-parameter **locks** so you can keep what you like.
 - **History**: step back and forward through results (`←` `→`, `⌘Z`).
 - **Formats**: 1:1, 4:5, 16:9, 9:16, 3:1.
-- **Type layer**: title, body, a highlighted label and a mono caption in five editorial layouts (bottom right, bottom left, top left, centred, stacked words). Randomize never changes it.
+- **Type layer**: title, body, a highlighted label and a mono caption in five editorial layouts (bottom right, bottom left, top left, centred, stacked words), with an optional **ink bleed** that rags and swells the letter edges. Randomize never changes it.
 - **Finish layer**: soft grain, print speckle or dust, plus vignette.
 - **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools. Type and grain are baked in, and the artwork fonts (Inter Tight, JetBrains Mono, self-hosted) are embedded, so exports match the preview exactly.
 - **Share links**: the full state, including type and finish, is encoded in the URL.
