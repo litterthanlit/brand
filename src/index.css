@@ -2,26 +2,26 @@
 
 @theme {
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* Light editorial palette: warm paper, near-black ink, one signal accent */
-  --color-paper: #f4f2ee;
-  --color-paper-2: #ebe8e2;
-  --color-panel: #ffffff;
-  --color-ink: #111111;
-  --color-ink-2: #4f4b45;
-  --color-ink-3: #6f6b63;
-  --color-line: #e3e0da;
-  --color-line-2: #d3cfc7;
-  --color-accent: #ff4f12;
-  --color-accent-ink: #c23a06;
+  /* A dark room. The artwork is the only light source; the UI stays out of the way. */
+  --color-paper: #0a0a0b;
+  --color-paper-2: #141416;
+  --color-panel: #0e0e10;
+  --color-ink: #ededed;
+  --color-ink-2: #a1a1a6;
+  --color-ink-3: #7c7c83;
+  --color-line: #1d1d20;
+  --color-line-2: #2c2c30;
+  --color-accent: #c4b5fd;
+  --color-accent-ink: #c4b5fd;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer base {
   html {
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -30,76 +30,81 @@
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'cv11';
+    font-size: 14px;
   }
   ::selection {
-    background: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
     color: #fff;
   }
   :focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
+    outline: 1px solid color-mix(in srgb, var(--color-ink) 70%, transparent);
+    outline-offset: 3px;
     border-radius: 6px;
   }
 }
 
 @layer components {
-  /* Range slider with a filled track (set --fill from JS) */
+  /* Hairline slider: a 1px track that fills, and a small quiet thumb (set --fill from JS) */
   .range {
     appearance: none;
     width: 100%;
-    height: 20px;
+    height: 18px;
     background: transparent;
     cursor: pointer;
     --fill: 50%;
   }
   .range::-webkit-slider-runnable-track {
-    height: 3px;
-    border-radius: 99px;
-    background: linear-gradient(to right, var(--color-ink) var(--fill), var(--color-line-2) var(--fill));
+    height: 1px;
+    background: linear-gradient(to right, var(--color-ink-2) var(--fill), var(--color-line-2) var(--fill));
   }
   .range::-moz-range-track {
-    height: 3px;
-    border-radius: 99px;
-    background: linear-gradient(to right, var(--color-ink) var(--fill), var(--color-line-2) var(--fill));
+    height: 1px;
+    background: linear-gradient(to right, var(--color-ink-2) var(--fill), var(--color-line-2) var(--fill));
   }
   .range::-webkit-slider-thumb {
     appearance: none;
-    width: 14px;
-    height: 14px;
-    margin-top: -5.5px;
+    width: 10px;
+    height: 10px;
+    margin-top: -4.5px;
     border-radius: 99px;
-    background: var(--color-panel);
-    border: 1.5px solid var(--color-ink);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
-    transition: transform 150ms var(--ease-out-soft);
+    background: var(--color-ink);
+    border: 0;
+    transition: transform 150ms var(--ease-out-soft), box-shadow 150ms var(--ease-out-soft);
   }
   .range::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 99px;
-    background: var(--color-panel);
-    border: 1.5px solid var(--color-ink);
+    background: var(--color-ink);
+    border: 0;
   }
   .range:hover::-webkit-slider-thumb,
   .range:active::-webkit-slider-thumb {
-    transform: scale(1.15);
+    transform: scale(1.2);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-ink) 10%, transparent);
   }
   .range:focus-visible {
     outline: none;
   }
   .range:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
-    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-ink) 22%, transparent);
   }
   .range:focus-visible::-moz-range-thumb {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-ink) 22%, transparent);
   }
 
-  .stage-bg {
-    background-color: var(--color-paper);
-    background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 14%, transparent) 1px, transparent 1px);
-    background-size: 18px 18px;
+  /*
+   * The halo: light spilling from an aperture onto the walls of a dark room.
+   * Set --glow (a gradient built from the artwork's palette) inline.
+   */
+  .halo {
+    position: absolute;
+    inset: -12%;
+    background: var(--glow);
+    filter: blur(64px) saturate(1.15);
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 900ms var(--ease-out-soft), background 900ms var(--ease-out-soft);
   }
 
   .no-spinner::-webkit-outer-spin-button,
@@ -124,18 +129,24 @@
 @keyframes menu-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-4px);
   }
 }
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
 }
+/* Slow fade up, like eyes adjusting to a dark room */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(8px);
+  }
+}
+@keyframes dawn {
+  from {
+    opacity: 0;
   }
 }

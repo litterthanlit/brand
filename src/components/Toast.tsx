@@ -20,7 +20,7 @@ export function Toast({ message, id }: { message: string | null; id: number }) {
       {message && (
         <div
           key={id}
-          className="animate-[toast-in_200ms_var(--ease-out-soft)] rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-white shadow-[0_12px_32px_-8px_rgba(0,0,0,0.35)]"
+          className="animate-[toast-in_200ms_var(--ease-out-soft)] rounded-full border border-line-2 bg-paper-2/90 px-4 py-2 text-[13px] text-ink shadow-[0_12px_32px_-8px_rgba(0,0,0,0.6)] backdrop-blur-xl"
         >
           {message}
         </div>
