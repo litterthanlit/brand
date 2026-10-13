@@ -62,6 +62,12 @@ export const longExposure: CanvasTool = {
       finish: { grain: 0.45, grainType: 'speckle' },
       type: { enabled: true, layout: 'tl', title: 'Current', body: '', label: 'Vol. 02', caption: '', color: '#EDEDED', labelBg: '#EDEDED', labelInk: '#0A0A0A' },
     },
+    {
+      name: 'Tide table', format: 'portrait', seed: 12,
+      params: { palette: ['#050505', '#141414', '#454545', '#C0C0C0', '#FFFFFF'], angle: 50, streak: 0.9, depth: 0.2, swirl: 0.1, scale: 0.8, foam: 0.6, detail: 0.1, contrast: 1.25 },
+      filter: { style: 'ticks', cell: 12, aspect: 3, weight: 0.26, floor: 0.2 },
+      finish: { grain: 0 },
+    },
   ],
   draw({ g, w, h, p, noise, t }) {
     // Work at ~half the output's device resolution; the smear hides the upscale.

@@ -46,6 +46,13 @@ export const blurEcho: SvgTool = {
       finish: { grain: 0.55, grainType: 'speckle' },
       type: { enabled: true, layout: 'bl', title: 'Slow form', body: 'Studies in softness', label: '', caption: 'NO. 12', color: '#1F3D2B' },
     },
+    {
+      name: 'Defocus', format: 'portrait', seed: 7,
+      params: { palette: ['#0B0B0B', '#FFFFFF'], shape: 'disc', rows: 4, strips: 3, shift: 0.3, size: 0.95, offsetY: 0.4 },
+      filter: { style: 'ascii', cell: 9, aspect: 1.8, scatter: 0.2, ink: '#FFB454', background: '#0C0905' },
+      finish: { grain: 0 },
+      type: { enabled: true, layout: 'br', title: '', body: '', label: '', caption: 'FIG. 03 — DEFOCUS, 8-STEP RAMP', font: 'mono', color: '#FFB454' },
+    },
   ],
   render({ w, h, p, t, uid }) {
     const [bg, ink, ink2] = pal(p, 'palette')
