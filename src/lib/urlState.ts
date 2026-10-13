@@ -1,5 +1,6 @@
 import type { ParamValues } from '../tools/types'
 import type { DocState } from './engine'
+import { filterActive } from './filter'
 
 function toBase64Url(s: string) {
   const bytes = new TextEncoder().encode(s)
@@ -25,8 +26,10 @@ const serialisable = (values: ParamValues) => {
 }
 
 export function encodeState(state: DocState) {
+  // An explicit "off" (not a missing key) so a tool whose defaults carry a filter still reopens unfiltered
+  const g = filterActive(state.filter) ? state.filter : { style: 'none' }
   return toBase64Url(
-    JSON.stringify({ s: state.seed, f: state.format, p: serialisable(state.params), x: state.finish, y: state.type }),
+    JSON.stringify({ s: state.seed, f: state.format, p: serialisable(state.params), g, x: state.finish, y: state.type }),
   )
 }
 
@@ -38,6 +41,7 @@ export function decodeState(data: string): Partial<DocState> | null {
       seed: Number.isFinite(raw.s) ? raw.s : undefined,
       format: typeof raw.f === 'string' ? raw.f : undefined,
       params: raw.p && typeof raw.p === 'object' ? raw.p : undefined,
+      filter: raw.g && typeof raw.g === 'object' ? raw.g : undefined,
       finish: raw.x && typeof raw.x === 'object' ? raw.x : undefined,
       type: raw.y && typeof raw.y === 'object' ? raw.y : undefined,
     }

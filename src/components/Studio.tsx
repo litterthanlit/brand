@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toolHref } from '../hooks/useHashRoute'
 import { defaultState, randomizeState, sanitizeParams, sanitizeValues, sizeOf, stateFromPreset, type DocState } from '../lib/engine'
+import { FILTER_PARAMS, FILTER_STYLES, filterActive, styleSwatch, withStyle } from '../lib/filter'
 import { FINISH_PARAMS } from '../lib/finish'
 import { TYPE_PARAMS } from '../lib/typeLayer'
 import { FORMATS, getFormat } from '../lib/formats'
@@ -19,11 +20,14 @@ const HISTORY_LIMIT = 60
 
 const TABS = [
   { id: 'generator', label: 'Generator' },
+  { id: 'filter', label: 'Filter' },
   { id: 'type', label: 'Type' },
   { id: 'finish', label: 'Finish' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
 const NO_LOCKS = new Set<string>()
+// the style gets its own picker; everything else is an ordinary control
+const FILTER_CONTROLS = FILTER_PARAMS.filter((p) => p.key !== 'style')
 
 function initialState(tool: ToolDef, data: string | null): DocState {
   const base = defaultState(tool)
@@ -33,6 +37,7 @@ function initialState(tool: ToolDef, data: string | null): DocState {
     seed: decoded.seed ?? base.seed,
     format: decoded.format && FORMATS.some((f) => f.id === decoded.format) ? decoded.format : base.format,
     params: sanitizeParams(tool, decoded.params ?? {}),
+    filter: decoded.filter ? sanitizeValues(FILTER_PARAMS, decoded.filter) : base.filter,
     finish: decoded.finish ? sanitizeValues(FINISH_PARAMS, decoded.finish) : base.finish,
     type: decoded.type ? sanitizeValues(TYPE_PARAMS, decoded.type) : base.type,
   }
@@ -85,22 +90,34 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
 
   const randomize = useCallback(() => push((s) => randomizeState(tool, s, locked)), [push, tool, locked])
   const shuffleSeed = useCallback(() => push((s) => ({ ...s, seed: newSeed() })), [push])
-  const reset = useCallback(() => push((s) => ({ ...defaultState(tool), format: s.format, type: s.type })), [push, tool])
+  const reset = useCallback(() => push((s) => ({ ...defaultState(tool), format: s.format, type: s.type, filter: s.filter })), [push, tool])
   const applyPreset = useCallback(
     (preset: Preset) =>
       push((s) => {
         const next = stateFromPreset(tool, preset, s.format)
         // keep any uploaded images; presets only describe the look
         for (const p of tool.params) if (p.type === 'image') next.params[p.key] = s.params[p.key]
+        // the filter is a lens over every look, so a mood without one keeps yours
+        if (!preset.filter) next.filter = s.filter
         return next
       }),
     [push, tool],
   )
   const setLayer = useCallback(
-    (layer: 'finish' | 'type', key: string, value: ParamValue) => replace((s) => ({ ...s, [layer]: { ...s[layer], [key]: value } })),
+    (layer: 'filter' | 'finish' | 'type', key: string, value: ParamValue) =>
+      replace((s) => ({
+        ...s,
+        // each style starts from its own cell geometry, so switching never leaves ticks' proportions on dots
+        [layer]: layer === 'filter' && key === 'style' ? withStyle(s.filter, value as string) : { ...s[layer], [key]: value },
+      })),
     [replace],
   )
-  const layerActive = (id: string) => (id === 'type' ? state.type.enabled === true : (state.finish.grain as number) > 0 || (state.finish.vignette as number) > 0)
+  const layerActive = (id: string) =>
+    id === 'filter'
+      ? filterActive(state.filter)
+      : id === 'type'
+        ? state.type.enabled === true
+        : (state.finish.grain as number) > 0 || (state.finish.vignette as number) > 0
   const undo = useCallback(() => setHist((h) => ({ ...h, index: Math.max(0, h.index - 1) })), [])
   const redo = useCallback(() => setHist((h) => ({ ...h, index: Math.min(h.stack.length - 1, h.index + 1) })), [])
 
@@ -349,6 +366,17 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                 </section>
               </>
             )}
+            {tab === 'filter' && (
+              <section aria-label="Filter layer">
+                <p className="px-5 pt-5 pb-1 text-[12.5px] leading-[1.55] text-ink-3">
+                  Re-draws the artwork as a screen of marks, one per cell, sized by the light underneath. Works on any tool and in every export.
+                </p>
+                <div className="px-5 pt-3 pb-1">
+                  <StylePicker value={state.filter.style as string} onChange={(style) => setLayer('filter', 'style', style)} />
+                </div>
+                <Controls params={FILTER_CONTROLS} values={state.filter} locked={NO_LOCKS} showLocks={false} onChange={(k, v) => setLayer('filter', k, v)} onToggleLock={() => {}} />
+              </section>
+            )}
             {tab === 'type' && (
               <section aria-label="Type layer">
                 <p className="px-5 pt-5 pb-1 text-[12.5px] leading-[1.55] text-ink-3">Text set over the artwork. Included in every export; Randomize leaves it alone.</p>
@@ -366,6 +394,54 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
         </aside>
       </div>
       <Toast message={message} id={toastKey} />
+    </div>
+  )
+}
+
+/**
+ * One tile per filter style, drawn by the engine's own swatch so the picker never drifts from the output.
+ * A radio group: the arrow keys move and select together, with a single tab stop.
+ */
+function StylePicker({ value, onChange }: { value: string; onChange: (style: string) => void }) {
+  const tiles = useMemo(() => FILTER_STYLES.map((s) => ({ ...s, swatch: styleSwatch(s.value, 44, 26) })), [])
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const current = Math.max(0, tiles.findIndex((s) => s.value === value))
+
+  const onKeyDown = (e: React.KeyboardEvent, i: number) => {
+    const n = tiles.length
+    const next =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % n : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i + n - 1) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1
+    if (next < 0) return
+    e.preventDefault()
+    // ← → also step through history globally; here they belong to the picker
+    e.stopPropagation()
+    onChange(tiles[next].value)
+    refs.current[next]?.focus()
+  }
+
+  return (
+    <div role="radiogroup" aria-label="Filter style" className="grid grid-cols-4 gap-1">
+      {tiles.map((s, i) => {
+        const active = i === current
+        return (
+          <button
+            key={s.value}
+            ref={(el) => {
+              refs.current[i] = el
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(s.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className={`flex flex-col items-center justify-center gap-1.5 rounded-md py-2 text-[11.5px] transition-colors duration-200 ${active ? 'bg-paper-2 text-ink' : 'text-ink-3 hover:text-ink-2'}`}
+          >
+            <svg viewBox="0 0 44 26" aria-hidden="true" className="block h-[26px] w-11" dangerouslySetInnerHTML={{ __html: s.swatch }} />
+            {s.label}
+          </button>
+        )
+      })}
     </div>
   )
 }

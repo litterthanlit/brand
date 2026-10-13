@@ -1,5 +1,6 @@
 import type { Param, ParamValues, Preset, RenderCtx, ToolDef } from '../tools/types'
 import { isHex } from './color'
+import { FILTER_PARAMS } from './filter'
 import { FINISH_PARAMS, renderFinish } from './finish'
 import { FORMATS, getFormat } from './formats'
 import { createNoise, type Noise } from './noise'
@@ -12,6 +13,8 @@ export interface DocState {
   seed: number
   format: string
   params: ParamValues
+  /** Global glyph-screen layer: re-draws the artwork as marks, below grain and type. */
+  filter: ParamValues
   /** Global grain / vignette layer. */
   finish: ParamValues
   /** Global editorial text layer. */
@@ -34,6 +37,7 @@ export function stateFromPreset(tool: ToolDef, preset: Omit<Preset, 'name'> = {}
     seed: preset.seed ?? base.seed ?? 7,
     format: FORMATS.some((x) => x.id === f) ? f : 'square',
     params: sanitizeParams(tool, preset.params ?? {}),
+    filter: sanitizeValues(FILTER_PARAMS, { ...base.filter, ...preset.filter }),
     finish: sanitizeValues(FINISH_PARAMS, { ...base.finish, ...preset.finish }),
     type: sanitizeValues(TYPE_PARAMS, { ...base.type, ...preset.type }),
   }
@@ -189,14 +193,20 @@ export function renderLayers(state: DocState): Layers {
   }
 }
 
-/** Complete single-file SVG (artwork + grain + type) for SVG tools. */
-export function renderSvg(tool: ToolDef, state: DocState, t = 0) {
-  if (tool.kind !== 'svg') throw new Error(`${tool.id} is not an SVG tool`)
+/** Stack grain, vignette and type over finished artwork markup (the tool's own, or the filter's) as one standalone SVG. */
+export function composeSvg(state: DocState, artwork: string) {
   const { w, h } = sizeOf(state)
   const uid = (++uidCounter).toString(36)
   const f = renderFinish(state.finish, w, h, state.seed, uid)
   const grain = f.grain ? (f.blend === 'overlay' ? `<g style="mix-blend-mode:overlay">${f.grain}</g>` : f.grain) : ''
-  return wrapSvg(w, h, tool.render(makeCtx(state, t, w, h)) + grain + f.vignette + renderTypeLayer(state.type, w, h))
+  return wrapSvg(w, h, artwork + grain + f.vignette + renderTypeLayer(state.type, w, h))
+}
+
+/** Complete single-file SVG (artwork + grain + type) for SVG tools. */
+export function renderSvg(tool: ToolDef, state: DocState, t = 0) {
+  if (tool.kind !== 'svg') throw new Error(`${tool.id} is not an SVG tool`)
+  const { w, h } = sizeOf(state)
+  return composeSvg(state, tool.render(makeCtx(state, t, w, h)))
 }
 
 /** Draw a canvas tool (or rasterised SVG is handled by export) into `canvas` at `scale` px per unit. */

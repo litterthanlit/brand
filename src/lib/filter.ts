@@ -25,7 +25,7 @@ export const FILTER_PARAMS: Param[] = [
   { type: 'select', key: 'style', label: 'Style', default: 'none', options: FILTER_STYLES.map((s) => ({ ...s })) },
   { type: 'number', key: 'cell', label: 'Cell width', min: 4, max: 48, step: 1, default: 12, unit: 'px', when: on },
   { type: 'number', key: 'aspect', label: 'Cell height', min: 0.4, max: 5, step: 0.05, default: 3, unit: '×', when: on },
-  { type: 'number', key: 'weight', label: 'Stroke', min: 0.05, max: 1, step: 0.01, default: 0.26, when: (p) => on(p) && p.style !== 'ascii' },
+  { type: 'number', key: 'weight', label: 'Weight', min: 0.05, max: 1, step: 0.01, default: 0.26, when: (p) => on(p) && p.style !== 'ascii' },
   {
     type: 'select', key: 'anchor', label: 'Anchor', default: 'center',
     options: [{ value: 'center', label: 'Centre' }, { value: 'start', label: 'Baseline' }],

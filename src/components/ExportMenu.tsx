@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { DocState } from '../lib/engine'
 import { sizeOf } from '../lib/engine'
 import { canRecordVideo, copySvg, exportPng, exportSvg, recordVideo } from '../lib/export'
+import { filterActive } from '../lib/filter'
 import type { ToolDef } from '../tools/types'
 import { DownloadIcon } from './Icons'
 
@@ -47,7 +48,8 @@ export function ExportMenu({ tool, state, notify, onCopyLink }: ExportMenuProps)
   }, [open])
 
   const groups: { title: string; items: Item[] }[] = []
-  if (tool.kind === 'svg') {
+  // a filter is built from marks, so even a canvas tool exports as vector once it is on
+  if (tool.kind === 'svg' || filterActive(state.filter)) {
     groups.push({
       title: 'Vector',
       items: [

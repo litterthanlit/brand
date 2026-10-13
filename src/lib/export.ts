@@ -1,6 +1,9 @@
 import type { ToolDef } from '../tools/types'
 import { drawCanvasTool, renderContentSvg, renderLayers, renderSvg, sizeOf, type DocState } from './engine'
+import { drawFilter, filterActive } from './filter'
+import { filterGrid, renderFilteredSvg } from './filterRender'
 import { withEmbeddedFonts } from './fonts'
+import { loadSvgImage, rasterise } from './raster'
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -15,33 +18,27 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export const fileBase = (tool: ToolDef, state: DocState) => `${tool.id}-${state.seed}`
 
+/** The standalone SVG: the tool's own vector artwork, or the filter's marks when one is on (any tool kind). */
+const vectorSvg = (tool: ToolDef, state: DocState) => (filterActive(state.filter) ? renderFilteredSvg(tool, state) : renderSvg(tool, state))
+
 export async function exportSvg(tool: ToolDef, state: DocState) {
-  const svg = await withEmbeddedFonts(renderSvg(tool, state))
+  const svg = await withEmbeddedFonts(await vectorSvg(tool, state))
   downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), `${fileBase(tool, state)}.svg`)
 }
 
 export async function copySvg(tool: ToolDef, state: DocState) {
-  await navigator.clipboard.writeText(renderSvg(tool, state))
-}
-
-function loadSvgImage(svg: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve(img)
+  const svg = Promise.resolve().then(() => vectorSvg(tool, state))
+  // Handing the clipboard a pending blob keeps the click's user gesture alive across the render; Safari rejects writeText after an await
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': svg.then((s) => new Blob([s], { type: 'text/plain' })) })])
+      return
+    } catch {
+      // fall through to writeText
     }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Could not rasterise SVG'))
-    }
-    img.src = url
-  })
+  }
+  await navigator.clipboard.writeText(await svg)
 }
-
-/** SVG → image with fonts embedded, since images can't see the page's fonts. */
-const rasterise = async (svg: string) => loadSvgImage(await withEmbeddedFonts(svg))
 
 /**
  * Renders frames of a tool with its grain and type layers into a canvas.
@@ -54,9 +51,18 @@ export async function createCompositor(tool: ToolDef, state: DocState, scale: nu
   const overlay = layers.overlay ? await rasterise(layers.overlay) : null
   const pw = Math.round(w * scale)
   const ph = Math.round(h * scale)
+  const filtered = filterActive(state.filter)
 
   return async function frame(canvas: HTMLCanvasElement, t = 0) {
-    if (tool.kind === 'canvas') {
+    if (filtered) {
+      // the same grid as the preview; static tools reuse its cached render, animated ones render per frame
+      const grid = await filterGrid(tool, state, t, !!tool.animated)
+      canvas.width = pw
+      canvas.height = ph
+      const g = canvas.getContext('2d')!
+      g.setTransform(pw / w, 0, 0, ph / h, 0, 0)
+      drawFilter(g, grid, state.filter, w, h, state.seed)
+    } else if (tool.kind === 'canvas') {
       drawCanvasTool(tool, state, canvas, scale, t)
     } else {
       canvas.width = pw
