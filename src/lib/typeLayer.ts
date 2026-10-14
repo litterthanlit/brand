@@ -20,6 +20,10 @@ export const TYPE_PARAMS: Param[] = [
     type: 'select', key: 'font', label: 'Typeface', default: 'sans',
     options: [{ value: 'sans', label: 'Grotesk' }, { value: 'mono', label: 'Mono' }],
   },
+  {
+    type: 'select', key: 'weight', label: 'Weight', default: '500',
+    options: [{ value: '400', label: 'Regular' }, { value: '500', label: 'Medium' }, { value: '700', label: 'Bold' }],
+  },
   { type: 'number', key: 'size', label: 'Size', min: 0.5, max: 6, step: 0.05, default: 1 },
   { type: 'number', key: 'measure', label: 'Column width', min: 0.2, max: 0.9, step: 0.01, default: 0.4 },
   { type: 'number', key: 'margin', label: 'Margin', min: 0.02, max: 0.15, step: 0.005, default: 0.055 },
@@ -94,7 +98,7 @@ function renderText(p: ParamValues, w: number, h: number) {
   const colW = Math.max(w * ((p.measure as number) ?? 0.4), 120 * u)
   const fs = 34 * u * scale
   const lh = fs * 1.12
-  const weight = mono ? 400 : 500
+  const weight = mono ? 400 : Number(p.weight) || 500
   const font = `${weight} ${fs}px ${family}`
   const familyAttr = `font-family="${escapeXml(family)}"`
 

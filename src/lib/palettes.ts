@@ -40,6 +40,10 @@ export const PALETTES: Palette[] = [
   { name: 'Retro Tech', colors: ['#EDE6D6', '#E4572E', '#29335C', '#F3A712', '#669BBC'] },
   { name: 'Noir Gold', colors: ['#0E0E0E', '#C9A227', '#EDE3C8'] },
   { name: 'Peach Fuzz', colors: ['#FFF1E6', '#FFA07A', '#E2725B', '#3D2C2E'] },
+  { name: 'Hypher', colors: ['#171A1B', '#1689D4', '#F3F1EA', '#F48254'] },
+  { name: 'Hypher Ivory', colors: ['#F3F1EA', '#1689D4', '#0B4F8A', '#F48254'] },
+  { name: 'Hypher Paper', colors: ['#FAF9F6', '#000000', '#0066FF', '#FF5A00'] },
+  { name: 'Hypher Black', colors: ['#000000', '#FAF9F6', '#0066FF', '#FF5A00'] },
 ]
 
 export const DEFAULT_PALETTE = PALETTES[0].colors
