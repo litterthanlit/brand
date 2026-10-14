@@ -15,6 +15,7 @@ import { photogram } from './photogram'
 import { rings } from './rings'
 import { screenOrb } from './screenOrb'
 import { stamp } from './stamp'
+import { stippleCloud } from './stippleCloud'
 import { sunburst } from './sunburst'
 import { topography } from './topography'
 import { truchet } from './truchet'
@@ -24,7 +25,7 @@ import { waves } from './waves'
 
 /** Order here is the order in the gallery and sidebar. Add new tools to this list. */
 export const TOOLS: ToolDef[] = [
-  glitchField, inkBleed, longExposure, lineSweep, particleStream, blurEcho, screenOrb, photogram, barType,
+  stippleCloud, glitchField, inkBleed, longExposure, lineSweep, particleStream, blurEcho, screenOrb, photogram, barType,
   halftone, meshGradient, dither, stamp, bauhaus, flowField, truchet, blob, topography, typeRepeat, sunburst, waves, rings,
 ]
 
