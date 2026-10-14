@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toolHref } from '../hooks/useHashRoute'
 import { defaultState, randomizeState, sanitizeParams, sanitizeValues, sizeOf, stateFromPreset, type DocState } from '../lib/engine'
-import { FILTER_PARAMS, FILTER_STYLES, filterActive, styleSwatch, withStyle } from '../lib/filter'
+import { FILTER_PARAMS, FILTER_STYLES, filterActive, styleSwatch, updateFilter } from '../lib/filter'
 import { FINISH_PARAMS } from '../lib/finish'
 import { TYPE_PARAMS } from '../lib/typeLayer'
 import { FORMATS, getFormat } from '../lib/formats'
@@ -107,8 +107,8 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
     (layer: 'filter' | 'finish' | 'type', key: string, value: ParamValue) =>
       replace((s) => ({
         ...s,
-        // each style starts from its own cell geometry, so switching never leaves ticks' proportions on dots
-        [layer]: layer === 'filter' && key === 'style' ? withStyle(s.filter, value as string) : { ...s[layer], [key]: value },
+        // the filter's style and mode carry side effects (cell geometry, colours), so it has its own updater
+        [layer]: layer === 'filter' ? updateFilter(s.filter, key, value) : { ...s[layer], [key]: value },
       })),
     [replace],
   )

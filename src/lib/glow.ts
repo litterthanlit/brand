@@ -13,14 +13,17 @@ export function paletteOf(tool: ToolDef, params?: DocState['params']): string[] 
 /**
  * A soft light field for the halo behind an artwork: the field colour fills the room,
  * the other colours pool at the edges. Blurred heavily in CSS, so it reads as spill, not shape.
- * A mono filter replaces the palette: its background is the field and its ink is the light pooling over it.
+ * A mono filter replaces the palette: its background is the field and its ink is the light pooling over it
+ * (a light-mode filter only tints its field, since its ink is dark).
  * (In source colour the filter keeps the artwork's own hues, so the palette glow still fits.)
  */
 export function glowOf(tool: ToolDef, params?: DocState['params'], filter?: DocState['filter']): string {
   if (filter && filterActive(filter) && filter.colorMode !== 'source') {
     const field = typeof filter.background === 'string' ? filter.background : '#111111'
     const ink = typeof filter.ink === 'string' ? filter.ink : '#D9D6CF'
-    return `radial-gradient(60% 60% at 30% 35%, color-mix(in srgb, ${ink} 60%, transparent), transparent 70%), radial-gradient(55% 55% at 72% 70%, color-mix(in srgb, ${ink} 40%, transparent), transparent 70%), ${field}`
+    // on paper the field is the light and dark ink pooling over it would read as mud, so it only tints
+    const [a, b] = filter.ground === 'light' ? [14, 10] : [60, 40]
+    return `radial-gradient(60% 60% at 30% 35%, color-mix(in srgb, ${ink} ${a}%, transparent), transparent 70%), radial-gradient(55% 55% at 72% 70%, color-mix(in srgb, ${ink} ${b}%, transparent), transparent 70%), ${field}`
   }
   const [field = '#2a2a2e', ...rest] = paletteOf(tool, params)
   const a = rest[0] ?? field

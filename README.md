@@ -41,7 +41,7 @@ Every tool supports:
 - **Randomize** (`R`), with per-parameter **locks** so you can keep what you like.
 - **History**: step back and forward through results (`←` `→`, `⌘Z`).
 - **Formats**: 1:1, 4:5, 16:9, 9:16, 3:1.
-- **Filter layer**: re-draws the artwork as a screen of marks, one per cell, sized by the brightness underneath: ticks, dashes, dots, crosses, hatch or ASCII, in one ink or the artwork's own colours. Works on every tool, and exports as vector SVG too. Randomize never changes it.
+- **Filter layer**: re-draws the artwork as a screen of marks, one per cell, sized by the brightness underneath: ticks, dashes, dots, crosses, hatch or ASCII, in one ink or the artwork's own colours. **Dark** mode lights marks in a dark room; **Light** mode prints dark ink on paper, sized by darkness, so pale artwork reads as a positive. **Auto levels** stretches each frame's tones, so thin lines and flat images still fill the screen. Works on every tool, and exports as vector SVG too. Randomize never changes it.
 - **Type layer**: title, body, a highlighted label and a mono caption in five editorial layouts (bottom right, bottom left, top left, centred, stacked words), with an optional **ink bleed** that rags and swells the letter edges. Randomize never changes it.
 - **Finish layer**: soft grain, print speckle or dust, plus vignette.
 - **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools. Filter, type and grain are baked in, and the artwork fonts (Inter Tight, JetBrains Mono, self-hosted) are embedded, so exports match the preview exactly.

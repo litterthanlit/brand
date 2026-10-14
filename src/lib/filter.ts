@@ -1,4 +1,5 @@
-import type { Param, ParamValues } from '../tools/types'
+import type { Param, ParamValue, ParamValues } from '../tools/types'
+import { luminance } from './color'
 import { escapeXml, r2 } from './svg'
 
 /**
@@ -21,8 +22,20 @@ export type FilterStyle = (typeof FILTER_STYLES)[number]['value']
 
 const on = (p: ParamValues) => p.style !== 'none'
 
+/** Ink and background each mode starts from: marks on a dark room, or dark ink printed on paper. */
+const GROUNDS = {
+  dark: { ink: '#D9D6CF', background: '#111111' },
+  light: { ink: '#1A1A1A', background: '#EDE9E1' },
+}
+type Ground = keyof typeof GROUNDS
+
 export const FILTER_PARAMS: Param[] = [
   { type: 'select', key: 'style', label: 'Style', default: 'none', options: FILTER_STYLES.map((s) => ({ ...s })) },
+  {
+    type: 'select', key: 'ground', label: 'Mode', default: 'dark',
+    options: [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }],
+    when: on,
+  },
   { type: 'number', key: 'cell', label: 'Cell width', min: 4, max: 48, step: 1, default: 12, unit: 'px', when: on },
   { type: 'number', key: 'aspect', label: 'Cell height', min: 0.4, max: 5, step: 0.05, default: 3, unit: '×', when: on },
   { type: 'number', key: 'weight', label: 'Weight', min: 0.05, max: 1, step: 0.01, default: 0.26, when: (p) => on(p) && p.style !== 'ascii' },
@@ -31,7 +44,8 @@ export const FILTER_PARAMS: Param[] = [
     options: [{ value: 'center', label: 'Centre' }, { value: 'start', label: 'Baseline' }],
     when: (p) => p.style === 'ticks' || p.style === 'dashes',
   },
-  { type: 'number', key: 'contrast', label: 'Contrast', min: 0.3, max: 3, step: 0.01, default: 1.2, when: on },
+  { type: 'boolean', key: 'levels', label: 'Auto levels', default: true, when: on },
+  { type: 'number', key: 'contrast', label: 'Contrast', min: 0.3, max: 3, step: 0.01, default: 1, when: on },
   { type: 'number', key: 'brightness', label: 'Brightness', min: -0.5, max: 0.5, step: 0.01, default: 0, when: on },
   { type: 'number', key: 'steps', label: 'Steps (0 = smooth)', min: 0, max: 12, step: 1, default: 0, when: on },
   { type: 'number', key: 'floor', label: 'Floor', min: 0, max: 0.6, step: 0.01, default: 0.12, when: on },
@@ -47,8 +61,8 @@ export const FILTER_PARAMS: Param[] = [
     options: [{ value: 'mono', label: 'Ink' }, { value: 'source', label: 'Source' }],
     when: on,
   },
-  { type: 'color', key: 'ink', label: 'Ink', default: '#D9D6CF', when: (p) => on(p) && p.colorMode === 'mono' },
-  { type: 'color', key: 'background', label: 'Background', default: '#111111', when: on },
+  { type: 'color', key: 'ink', label: 'Ink', default: GROUNDS.dark.ink, when: (p) => on(p) && p.colorMode === 'mono' },
+  { type: 'color', key: 'background', label: 'Background', default: GROUNDS.dark.background, when: on },
 ]
 
 /** The look each style starts from when picked (cell geometry and stroke). Merged over the current filter values. */
@@ -69,6 +83,39 @@ export function withStyle(f: ParamValues, style: string): ParamValues {
   return { ...f, ...(FILTER_STYLE_DEFAULTS[style as FilterStyle] ?? {}), style }
 }
 
+const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+
+/**
+ * Switch mode, carrying the colours across. Stock colours become the other mode's stock colours.
+ * A custom pair keeps its look and is only swapped when the new mode needs it: paper lighter than
+ * the ink in Light, a room darker than the ink in Dark. Swapping back therefore restores it exactly.
+ */
+function withGround(f: ParamValues, value: string): ParamValues {
+  const to: Ground = value === 'light' ? 'light' : 'dark'
+  const now: Ground = sv(f, 'ground') === 'light' ? 'light' : 'dark'
+  // picking the active mode again must not touch a custom pair
+  if (to === now) return { ...f, ground: to }
+  const from = GROUNDS[now]
+  let ink = sv(f, 'ink')
+  let background = sv(f, 'background')
+  if (sameColor(ink, from.ink) && sameColor(background, from.background)) {
+    ink = GROUNDS[to].ink
+    background = GROUNDS[to].background
+  } else if (to === 'light' ? luminance(background) < luminance(ink) : luminance(background) > luminance(ink)) {
+    const paper = ink
+    ink = background
+    background = paper
+  }
+  return { ...f, ground: to, ink, background }
+}
+
+/** Apply one filter control change. Style and mode carry side effects; everything else is a plain key. */
+export function updateFilter(f: ParamValues, key: string, value: ParamValue): ParamValues {
+  if (key === 'style') return withStyle(f, value as string)
+  if (key === 'ground') return withGround(f, value as string)
+  return { ...f, [key]: value }
+}
+
 /** The cell grid for a w×h artwork. The grid is centred, so partial cells split evenly between the edges. */
 export interface CellLayout {
   cols: number
@@ -83,7 +130,7 @@ export interface CellLayout {
 
 /** A sampled artwork: one brightness and one average colour per cell. */
 export interface CellGrid extends CellLayout {
-  /** Row-major, cols × rows, in [0, 1] after contrast / brightness / invert / steps. */
+  /** Row-major, cols × rows, in [0, 1] after levels / contrast / brightness / flip / steps. 1 is the heaviest mark. */
   lum: Float32Array
   /** Row-major average sRGB colour, 3 bytes per cell. */
   rgb: Uint8ClampedArray
@@ -93,6 +140,8 @@ export interface CellGrid extends CellLayout {
 const PARAM_DEFAULTS: ParamValues = Object.fromEntries(FILTER_PARAMS.map((p) => [p.key, p.default]))
 const nv = (f: ParamValues, k: string) => (typeof f[k] === 'number' ? f[k] : PARAM_DEFAULTS[k]) as number
 const sv = (f: ParamValues, k: string) => (typeof f[k] === 'string' ? f[k] : PARAM_DEFAULTS[k]) as string
+const bv = (f: ParamValues, k: string) => (typeof f[k] === 'boolean' ? f[k] : PARAM_DEFAULTS[k]) as boolean
+const isLight = (f: ParamValues) => sv(f, 'ground') === 'light'
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
@@ -127,6 +176,37 @@ export function sampleScale(f: ParamValues, w: number, h: number): number {
 
 let scratch: HTMLCanvasElement | null = null
 
+const LEVEL_BINS = 1024
+/** Share of cells allowed to clip at each end. */
+const LEVEL_CLIP = 0.01
+/** The narrowest span stretched to full range, which caps the gain at 1 / 0.08. */
+const LEVEL_MIN_SPAN = 0.08
+const levelHist = new Uint32Array(LEVEL_BINS)
+
+/**
+ * Auto levels: the offset and gain that stretch the 1st–99th percentile of `v` (cell luma in [0, 1]) to full range.
+ * Binned rather than sorted, since it runs for every animation frame. A near-flat image would turn its
+ * noise into texture, so a narrow span is widened around where it sits, which maps a flat image to itself.
+ */
+function levelsOf(v: Float32Array): [lo: number, gain: number] {
+  levelHist.fill(0)
+  for (let i = 0; i < v.length; i++) levelHist[Math.min(LEVEL_BINS - 1, Math.floor(v[i] * LEVEL_BINS))]++
+  const cut = v.length * LEVEL_CLIP
+  let acc = 0
+  let a = 0
+  while (a < LEVEL_BINS - 1 && (acc += levelHist[a]) < cut) a++
+  acc = 0
+  let b = LEVEL_BINS - 1
+  while (b > a && (acc += levelHist[b]) < cut) b--
+  let lo = a / LEVEL_BINS
+  let span = (b + 1) / LEVEL_BINS - lo
+  if (span < LEVEL_MIN_SPAN) {
+    lo *= (1 - LEVEL_MIN_SPAN) / (1 - span)
+    span = LEVEL_MIN_SPAN
+  }
+  return [lo, 1 / span]
+}
+
 /**
  * Average a rendered artwork into cells.
  * `source` covers the whole w×h artwork at any resolution: `sourceW` × `sourceH` is its pixel size
@@ -155,8 +235,8 @@ export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH:
     scratch.height = sh
   }
   const g = scratch.getContext('2d', { willReadFrequently: true })!
-  // transparent artwork reads as dark, like the background it will sit on
-  g.fillStyle = '#000'
+  // transparent artwork reads as the ground it will sit on: dark in a dark room, blank on paper
+  g.fillStyle = isLight(f) ? '#fff' : '#000'
   g.fillRect(0, 0, sw, sh)
   g.imageSmoothingEnabled = true
   g.imageSmoothingQuality = 'high'
@@ -189,7 +269,8 @@ export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH:
 
   const contrast = nv(f, 'contrast')
   const brightness = nv(f, 'brightness')
-  const invert = !!f.invert
+  // marks follow brightness on a dark ground and darkness on paper; invert flips either
+  const flip = !!f.invert !== isLight(f)
   const steps = Math.round(nv(f, 'steps'))
   const n = sx * sy
   const lum = new Float32Array(cells)
@@ -201,9 +282,14 @@ export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH:
     rgb[i * 3] = r
     rgb[i * 3 + 1] = gr
     rgb[i * 3 + 2] = b
-    let v = (0.2126 * r + 0.7152 * gr + 0.0722 * b) / 255
+    lum[i] = (0.2126 * r + 0.7152 * gr + 0.0722 * b) / 255
+  }
+
+  const [lo, gain] = bv(f, 'levels') ? levelsOf(lum) : [0, 1]
+  for (let i = 0; i < cells; i++) {
+    let v = (lum[i] - lo) * gain
     v = (v - 0.5) * contrast + 0.5 + brightness
-    if (invert) v = 1 - v
+    if (flip) v = 1 - v
     v = clamp(v, 0, 1)
     if (steps > 0) v = Math.round(v * steps) / steps
     lum[i] = v
@@ -275,15 +361,20 @@ function hash(seed: number, i: number) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
+/** Brightest channel on paper, past which a source colour is deepened to stay legible. */
+const PAPER_CAP = 140
+
 /**
- * Dim colours would vanish on a dark background, so lift the brightest channel to ~230 and keep the hue.
- * Near-black cells are lifted from 32 rather than from their own noise, so they stay dim instead of turning white.
+ * Colours must read against the ground, so move the brightest channel and keep the hue.
+ * Dark: dim colours would vanish, so lift it to ~230. Near-black cells are lifted from 32 rather than from
+ * their own noise, so they stay dim instead of turning white.
+ * Light: bright colours would vanish on paper, so deepen anything above ~140. Dim cells are left alone, so near-black stays ink.
  */
-function sourceKey(rgb: Uint8ClampedArray, i: number): Key {
+function sourceKey(rgb: Uint8ClampedArray, i: number, light: boolean): Key {
   const r = rgb[i * 3]
   const g = rgb[i * 3 + 1]
   const b = rgb[i * 3 + 2]
-  const k = 230 / Math.max(r, g, b, 32) / 17
+  const k = (light ? Math.min(1, PAPER_CAP / Math.max(r, g, b, 1)) : 230 / Math.max(r, g, b, 32)) / 17
   return 1 + ((Math.round(r * k) << 8) | (Math.round(g * k) << 4) | Math.round(b * k))
 }
 
@@ -352,6 +443,7 @@ function eachMark(grid: CellGrid, f: ParamValues, p: Plan, seed: number, s: Sink
   const stray = nv(f, 'scatter') * 0.06
   const dot = sv(f, 'empty') === 'dot'
   const source = sv(f, 'colorMode') === 'source'
+  const light = isLight(f)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const i = r * cols + c
@@ -366,7 +458,7 @@ function eachMark(grid: CellGrid, f: ParamValues, p: Plan, seed: number, s: Sink
         else if (dot) m = -1
         else continue
       }
-      mark(s, p, source ? sourceKey(rgb, i) : 0, ox + c * cw, oy + r * ch, m)
+      mark(s, p, source ? sourceKey(rgb, i, light) : 0, ox + c * cw, oy + r * ch, m)
     }
   }
 }
