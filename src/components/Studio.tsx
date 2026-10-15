@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toolHref } from '../hooks/useHashRoute'
-import { defaultState, randomizeState, sanitizeParams, sanitizeValues, sizeOf, stateFromPreset, type DocState } from '../lib/engine'
+import { defaultState, randomizeState, sanitizeFilter, sanitizeParams, sanitizeValues, sizeOf, stateFromPreset, type DocState } from '../lib/engine'
 import { FILTER_PARAMS, FILTER_STYLES, filterActive, styleSwatch, updateFilter } from '../lib/filter'
 import { FINISH_PARAMS } from '../lib/finish'
 import { TYPE_PARAMS } from '../lib/typeLayer'
@@ -37,7 +37,7 @@ function initialState(tool: ToolDef, data: string | null): DocState {
     seed: decoded.seed ?? base.seed,
     format: decoded.format && FORMATS.some((f) => f.id === decoded.format) ? decoded.format : base.format,
     params: sanitizeParams(tool, decoded.params ?? {}),
-    filter: decoded.filter ? sanitizeValues(FILTER_PARAMS, decoded.filter) : base.filter,
+    filter: decoded.filter ? sanitizeFilter(decoded.filter) : base.filter,
     finish: decoded.finish ? sanitizeValues(FINISH_PARAMS, decoded.finish) : base.finish,
     type: decoded.type ? sanitizeValues(TYPE_PARAMS, decoded.type) : base.type,
   }
@@ -369,7 +369,10 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
             {tab === 'filter' && (
               <section aria-label="Filter layer">
                 <p className="px-5 pt-5 pb-1 text-[12.5px] leading-[1.55] text-ink-3">
-                  Re-draws the artwork as a screen of marks, one per cell, sized by the light underneath. Works on any tool and in every export.
+                  {state.filter.ground === 'light'
+                    ? 'Prints the artwork as ink on paper, one mark per cell. Its ground becomes the paper, even when it is black, so the subject is what prints.'
+                    : 'Re-draws the artwork as a screen of marks, one per cell, sized by the light underneath.'}{' '}
+                  Works on any tool and in every export.
                 </p>
                 <div className="px-5 pt-3 pb-1">
                   <StylePicker value={state.filter.style as string} onChange={(style) => setLayer('filter', 'style', style)} />

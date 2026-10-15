@@ -1,6 +1,6 @@
 import type { ParamValues, ToolDef } from '../tools/types'
 import { composeSvg, drawCanvasTool, renderContentSvg, sizeOf, type DocState } from './engine'
-import { filterSvg, sampleCells, sampleScale, type CellGrid } from './filter'
+import { darkGround, filterSvg, sampleCells, sampleScale, type CellGrid } from './filter'
 import { rasterise } from './raster'
 
 /**
@@ -85,15 +85,41 @@ export function artworkSource(tool: ToolDef, state: DocState, t: number, live = 
   return entry.source
 }
 
-const sample = (source: ArtworkSource, state: DocState): CellGrid => {
+// Whether each artwork sits on a dark ground, by params identity, then tool, seed and format.
+const grounds = new WeakMap<ParamValues, Map<string, boolean | Promise<boolean>>>()
+
+/**
+ * Light mode asks once per artwork whether it sits on a dark ground, always from its first frame,
+ * so a loop never flips polarity part-way and every export agrees with the preview.
+ */
+function onDarkGround(tool: ToolDef, state: DocState): boolean | Promise<boolean> {
+  let known = grounds.get(state.params)
+  if (!known) grounds.set(state.params, (known = new Map()))
+  const key = `${tool.id}|${state.seed}|${state.format}`
+  const hit = known.get(key)
+  if (hit !== undefined) return hit
+  const probe = (s: ArtworkSource) => darkGround(s.image, s.width, s.height)
+  const source = artworkSource(tool, state, 0)
+  const result = source instanceof Promise ? source.then(probe) : probe(source)
+  known.set(key, result)
+  if (result instanceof Promise) result.then((v) => known.set(key, v), () => known.delete(key))
+  return result
+}
+
+const sample = (source: ArtworkSource, state: DocState, onDark: boolean): CellGrid => {
   const { w, h } = sizeOf(state)
-  return sampleCells(source.image, source.width, source.height, state.filter, w, h)
+  return sampleCells(source.image, source.width, source.height, state.filter, w, h, onDark)
 }
 
 /** The artwork sampled into the filter's cells. Synchronous for canvas tools, a promise for SVG tools. */
 export function filterGrid(tool: ToolDef, state: DocState, t: number, live = false): CellGrid | Promise<CellGrid> {
+  // probe before the live draw: a live canvas source is only valid until the next draw
+  const onDark = state.filter.ground === 'light' ? onDarkGround(tool, state) : false
   const source = artworkSource(tool, state, t, live)
-  return source instanceof Promise ? source.then((s) => sample(s, state)) : sample(source, state)
+  if (source instanceof Promise || onDark instanceof Promise) {
+    return Promise.all([source, onDark]).then(([s, d]) => sample(s, state, d))
+  }
+  return sample(source, state, onDark)
 }
 
 /** Complete single-file SVG of the filtered artwork, with grain, vignette and type on top. */

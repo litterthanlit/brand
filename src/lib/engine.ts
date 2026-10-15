@@ -1,6 +1,6 @@
 import type { Param, ParamValues, Preset, RenderCtx, ToolDef } from '../tools/types'
-import { isHex } from './color'
-import { FILTER_PARAMS } from './filter'
+import { isHex, luminance } from './color'
+import { FILTER_PARAMS, FILTER_STYLE_DEFAULTS, filterActive, groundColors, type FilterStyle } from './filter'
 import { FINISH_PARAMS, renderFinish } from './finish'
 import { FORMATS, getFormat } from './formats'
 import { createNoise, type Noise } from './noise'
@@ -37,7 +37,7 @@ export function stateFromPreset(tool: ToolDef, preset: Omit<Preset, 'name'> = {}
     seed: preset.seed ?? base.seed ?? 7,
     format: FORMATS.some((x) => x.id === f) ? f : 'square',
     params: sanitizeParams(tool, preset.params ?? {}),
-    filter: sanitizeValues(FILTER_PARAMS, { ...base.filter, ...preset.filter }),
+    filter: sanitizeFilter({ ...base.filter, ...preset.filter }),
     finish: sanitizeValues(FINISH_PARAMS, { ...base.finish, ...preset.finish }),
     type: sanitizeValues(TYPE_PARAMS, { ...base.type, ...preset.type }),
   }
@@ -89,6 +89,18 @@ export function sanitizeValues(params: Param[], raw: Partial<ParamValues>): Para
         break
     }
   }
+  return out
+}
+
+/**
+ * Sanitise a filter. What it does not name comes from the choice it names, as picking it in the UI would:
+ * a bare `style` gets that style's geometry, and a bare `ground: 'light'` prints on paper, not in Dark's room.
+ */
+export function sanitizeFilter(raw: Partial<ParamValues>): ParamValues {
+  const out = sanitizeValues(FILTER_PARAMS, { ...FILTER_STYLE_DEFAULTS[raw.style as FilterStyle], ...raw })
+  const stock = groundColors(out.ground)
+  if (!isHex(raw.ink)) out.ink = stock.ink
+  if (!isHex(raw.background)) out.background = stock.background
   return out
 }
 
@@ -180,12 +192,30 @@ export interface Layers {
   overlay: string
 }
 
+/** WCAG contrast ratio between two hex colours. */
+const contrast = (a: string, b: string) => {
+  const la = luminance(a)
+  const lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/**
+ * The type layer as it prints. A filter repaints the whole artwork on its own ground, so text whose colour
+ * would vanish into that ground (light type on paper, dark type in the room) takes the filter's ink instead.
+ */
+function typeOnGround(state: DocState): ParamValues {
+  const { ink, background } = state.filter
+  const color = state.type.color
+  if (!filterActive(state.filter) || !isHex(ink) || !isHex(background) || !isHex(color)) return state.type
+  return contrast(color, background) < 2 && contrast(ink, background) > contrast(color, background) ? { ...state.type, color: ink } : state.type
+}
+
 /** Static layers above the artwork. They don't depend on animation time, so previews render them once. */
 export function renderLayers(state: DocState): Layers {
   const { w, h } = sizeOf(state)
   const uid = (++uidCounter).toString(36)
   const f = renderFinish(state.finish, w, h, state.seed, uid)
-  const type = renderTypeLayer(state.type, w, h)
+  const type = renderTypeLayer(typeOnGround(state), w, h)
   return {
     grain: f.grain ? wrapSvg(w, h, f.grain) : '',
     blend: f.blend,
@@ -199,7 +229,7 @@ export function composeSvg(state: DocState, artwork: string) {
   const uid = (++uidCounter).toString(36)
   const f = renderFinish(state.finish, w, h, state.seed, uid)
   const grain = f.grain ? (f.blend === 'overlay' ? `<g style="mix-blend-mode:overlay">${f.grain}</g>` : f.grain) : ''
-  return wrapSvg(w, h, artwork + grain + f.vignette + renderTypeLayer(state.type, w, h))
+  return wrapSvg(w, h, artwork + grain + f.vignette + renderTypeLayer(typeOnGround(state), w, h))
 }
 
 /** Complete single-file SVG (artwork + grain + type) for SVG tools. */

@@ -29,6 +29,9 @@ const GROUNDS = {
 }
 type Ground = keyof typeof GROUNDS
 
+/** The stock ink and background of a mode (anything but 'light' is Dark). */
+export const groundColors = (ground: unknown) => (ground === 'light' ? GROUNDS.light : GROUNDS.dark)
+
 export const FILTER_PARAMS: Param[] = [
   { type: 'select', key: 'style', label: 'Style', default: 'none', options: FILTER_STYLES.map((s) => ({ ...s })) },
   {
@@ -207,12 +210,64 @@ function levelsOf(v: Float32Array): [lo: number, gain: number] {
   return [lo, 1 / span]
 }
 
+const PROBE = 64
+const PROBE_BINS = 32
+/** Share of the artwork one tone must cover to count as its ground. */
+const GROUND_SHARE = 0.3
+let probe: HTMLCanvasElement | null = null
+const probeHist = new Uint32Array(PROBE_BINS)
+
+/**
+ * Whether an artwork sits on a ground darker than its subject: a dominant flat tone (a galaxy's black,
+ * a saturated blue field) with the rest of the image lighter. Light mode prints that ground as paper,
+ * so the subject comes out as ink instead of a slab of ink with pale holes. Tonal artwork and photos
+ * have no dominant tone and keep a faithful print.
+ */
+export function darkGround(source: CanvasImageSource, sourceW: number, sourceH: number): boolean {
+  probe ??= document.createElement('canvas')
+  probe.width = PROBE
+  probe.height = PROBE
+  const g = probe.getContext('2d', { willReadFrequently: true })!
+  // transparent reads as paper, as it does when sampled in Light
+  g.fillStyle = '#fff'
+  g.fillRect(0, 0, PROBE, PROBE)
+  g.imageSmoothingEnabled = true
+  g.imageSmoothingQuality = 'high'
+  if (sourceW > 0 && sourceH > 0) g.drawImage(source, 0, 0, PROBE, PROBE)
+  const px = g.getImageData(0, 0, PROBE, PROBE).data
+  const n = PROBE * PROBE
+  const lum = new Float32Array(n)
+  probeHist.fill(0)
+  for (let i = 0; i < n; i++) {
+    const p = i * 4
+    lum[i] = (0.2126 * px[p] + 0.7152 * px[p + 1] + 0.0722 * px[p + 2]) / 255
+    probeHist[Math.min(PROBE_BINS - 1, Math.floor(lum[i] * PROBE_BINS))]++
+  }
+  // the ground is the most common tone, with its neighbours (antialiasing and grain spread it)
+  let mode = 0
+  for (let b = 1; b < PROBE_BINS; b++) if (probeHist[b] > probeHist[mode]) mode = b
+  const lo = (mode - 1) / PROBE_BINS
+  const hi = (mode + 2) / PROBE_BINS
+  let ground = 0
+  let groundSum = 0
+  let restSum = 0
+  for (let i = 0; i < n; i++) {
+    if (lum[i] >= lo && lum[i] < hi) {
+      ground++
+      groundSum += lum[i]
+    } else restSum += lum[i]
+  }
+  if (ground < n * GROUND_SHARE || ground === n) return false
+  return restSum / (n - ground) > groundSum / ground
+}
+
 /**
  * Average a rendered artwork into cells.
  * `source` covers the whole w×h artwork at any resolution: `sourceW` × `sourceH` is its pixel size
  * (a canvas's width/height, or w/h for an SVG image rasterised from a w×h viewBox).
+ * `onDark` says the artwork sits on a dark ground (see darkGround), which Light mode prints as paper.
  */
-export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH: number, f: ParamValues, w: number, h: number): CellGrid {
+export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH: number, f: ParamValues, w: number, h: number, onDark = false): CellGrid {
   const l = cellLayout(f, w, h)
   const { cols, rows, cw, ch } = l
   const cells = cols * rows
@@ -269,8 +324,9 @@ export function sampleCells(source: CanvasImageSource, sourceW: number, sourceH:
 
   const contrast = nv(f, 'contrast')
   const brightness = nv(f, 'brightness')
-  // marks follow brightness on a dark ground and darkness on paper; invert flips either
-  const flip = !!f.invert !== isLight(f)
+  // marks follow brightness in the room. On paper they follow darkness, unless the artwork's own ground
+  // is dark: then the ground becomes the paper and the bright subject prints. Invert flips either.
+  const flip = !!f.invert !== (isLight(f) && !onDark)
   const steps = Math.round(nv(f, 'steps'))
   const n = sx * sy
   const lum = new Float32Array(cells)
