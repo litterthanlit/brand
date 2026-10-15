@@ -50,6 +50,13 @@ export const screenOrb: CanvasTool = {
       params: { palette: ['#F6F1E7', '#111111', '#0078BF', '#FF48B0', '#FFE800'], scene: 'horizon', cell: 7, mode: 'colour', gain: 1.25 },
       finish: { grain: 0.5, grainType: 'speckle' },
     },
+    {
+      name: 'Etching', format: 'portrait', seed: 7,
+      params: { palette: ['#F3EFE6', '#6F675A', '#CFC6B4', '#0A0806', '#EFE9DC'], scene: 'orb', orbSize: 0.4, orbY: 0.54, glow: 0.2, cell: 2 },
+      filter: { style: 'hatch', ground: 'light', cell: 10, aspect: 1, weight: 0.16, levels: false, contrast: 1.5, scatter: 0.1, ink: '#1A1A1A', background: '#EDE9E1' },
+      finish: { grain: 0 },
+      type: { enabled: true, layout: 'tl', title: '', body: '', label: '', caption: 'PLATE IV — SPHERE, HATCHED', font: 'mono', color: '#1A1A1A' },
+    },
   ],
   draw({ g, w, h, p, t }) {
     const [paper, sky, horizon, core, light] = pal(p, 'palette')

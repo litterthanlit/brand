@@ -22,6 +22,13 @@ export const meshGradient: CanvasTool = {
       options: [{ value: 'source-over', label: 'Normal' }, { value: 'multiply', label: 'Multiply' }, { value: 'screen', label: 'Screen' }],
     },
   ],
+  presets: [
+    {
+      name: 'Marquee', format: 'portrait', seed: 5,
+      params: { palette: ['#050505', '#FF3B30', '#FFB300', '#00C2FF', '#7B2FFF', '#00E08A'], blobs: 6, size: 0.7, softness: 0.8, grain: 0 },
+      filter: { style: 'dots', cell: 14, aspect: 1, weight: 0.9, colorMode: 'source', scatter: 0.15, background: '#070707' },
+    },
+  ],
   draw({ g, w, h, p, rng, t, seed }) {
     const [bg, ...inks] = pal(p, 'palette')
     const m = Math.max(w, h)

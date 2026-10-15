@@ -43,10 +43,11 @@ Every tool supports:
 - **Randomize** (`R`), with per-parameter **locks** so you can keep what you like.
 - **History**: step back and forward through results (`←` `→`, `⌘Z`).
 - **Formats**: 1:1, 4:5, 16:9, 9:16, 3:1.
+- **Filter layer**: re-draws the artwork as a screen of marks, one per cell, sized by the brightness underneath: ticks, dashes, dots, crosses, hatch or ASCII, in one ink or the artwork's own colours. **Dark** mode lights marks in a dark room; **Light** mode prints dark ink on paper, sized by darkness, so pale artwork reads as a positive. **Auto levels** stretches each frame's tones, so thin lines and flat images still fill the screen. Works on every tool, and exports as vector SVG too. Randomize never changes it.
 - **Type layer**: title, body, a highlighted label and a mono caption in three weights and five editorial layouts (bottom right, bottom left, top left, centred, stacked words), with an optional **ink bleed** that rags and swells the letter edges. Randomize never changes it.
 - **Finish layer**: soft grain, print speckle or dust, plus vignette.
-- **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools. Type and grain are baked in, and the artwork fonts (Inter Tight, JetBrains Mono, self-hosted) are embedded, so exports match the preview exactly.
-- **Share links**: the full state, including type and finish, is encoded in the URL.
+- **Export**: SVG, copy SVG code, PNG at 1×/2×/4×, and seamless **video loops** (WebM) for animated tools. Filter, type and grain are baked in, and the artwork fonts (Inter Tight, JetBrains Mono, self-hosted) are embedded, so exports match the preview exactly.
+- **Share links**: the full state, including filter, type and finish, is encoded in the URL.
 
 ## Develop
 
@@ -83,8 +84,8 @@ export const myTool: SvgTool = {
 }
 ```
 
-Then add it to `TOOLS` in `src/tools/index.ts`. The controls panel, randomizer, type and finish layers, URL sharing and all exports come for free.
-Optional: `raw: true` puts it in the Raw collection, `defaults` sets its starting format/finish/type, and `presets` adds mood chips.
+Then add it to `TOOLS` in `src/tools/index.ts`. The controls panel, randomizer, filter, type and finish layers, URL sharing and all exports come for free.
+Optional: `raw: true` puts it in the Raw collection, `defaults` sets its starting format/filter/finish/type, and `presets` adds mood chips (a preset can carry a `filter` too).
 Rules: use the seeded `rng`/`noise` (never `Math.random`) so results are reproducible, and escape user text with `escapeXml`.
 
 ## Project layout
@@ -92,7 +93,7 @@ Rules: use the seeded `rng`/`noise` (never `Math.random`) so results are reprodu
 ```
 src/
   tools/        one file per generator + registry and types
-  lib/          engine (state, randomize, render), type + finish layers, fonts, export, noise, rng, palettes, url state
+  lib/          engine (state, randomize, render), filter + type + finish layers, filter rendering (one sampling path for preview and export), SVG rasterising, fonts, export, noise, rng, palettes, url state
   components/   Gallery (home), Studio (editor), Controls, Preview, ExportMenu
   hooks/        hash router, reduced-motion
 ```

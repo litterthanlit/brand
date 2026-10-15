@@ -81,6 +81,7 @@ export interface Preset {
   format?: string
   seed?: number
   params?: ParamValues
+  filter?: ParamValues
   finish?: ParamValues
   type?: ParamValues
 }

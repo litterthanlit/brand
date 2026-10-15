@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { drawCanvasTool, renderContentSvg, renderLayers, sizeOf, type DocState } from '../lib/engine'
+import { drawFilter, filterActive, type CellGrid } from '../lib/filter'
+import { filterGrid } from '../lib/filterRender'
 import type { ToolDef } from '../tools/types'
 
 interface PreviewProps {
@@ -21,6 +23,7 @@ const SVG_FPS = 30
 /**
  * Renders any tool, static or animated, plus its grain and type layers.
  * Only the artwork re-renders per frame; the layers above it are static.
+ * With a filter on, every tool is drawn through a canvas as a screen of marks instead.
  */
 export function Preview({ tool, state, playing = false, lazy = false, className = '', label, phaseRef, cover = false }: PreviewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -30,6 +33,9 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
   const phase = phaseRef ?? localPhase
   const [visible, setVisible] = useState(!lazy)
   const [display, setDisplay] = useState({ w: 0, h: 0 })
+  const filtered = filterActive(state.filter)
+  // Bumped by every filtered request and on cleanup, so a rasterised SVG that arrives late never paints.
+  const seq = useRef(0)
 
   useEffect(() => {
     if (!lazy || visible) return
@@ -40,21 +46,48 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
     return () => io.disconnect()
   }, [lazy, visible])
 
-  // Canvas tools render at display resolution, so track the box size.
+  // Canvas tools (and any filtered tool) render at display resolution, so track the box size.
   useEffect(() => {
-    if (tool.kind !== 'canvas') return
+    if (tool.kind !== 'canvas' && !filtered) return
     const el = hostRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => setDisplay({ w: Math.round(entry.contentRect.width), h: Math.round(entry.contentRect.height) }))
     ro.observe(el)
     return () => ro.disconnect()
-  }, [tool.kind])
+  }, [tool.kind, filtered])
 
   useEffect(() => {
     if (!visible) return
     const { w, h } = sizeOf(state)
+    // a filtered SVG tool is still rasterising; the loop waits rather than queueing frames behind it
+    let busy = false
+
+    const paintFiltered = (grid: CellGrid) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const fit = cover ? Math.max(display.w / w, display.h / h) : display.w / w
+      const scale = Math.min(2, fit * Math.min(2, devicePixelRatio || 1))
+      const pw = Math.max(1, Math.round(w * scale))
+      const ph = Math.max(1, Math.round(h * scale))
+      if (canvas.width !== pw) canvas.width = pw
+      if (canvas.height !== ph) canvas.height = ph
+      const g = canvas.getContext('2d')!
+      g.setTransform(pw / w, 0, 0, ph / h, 0, 0)
+      drawFilter(g, grid, state.filter, w, h, state.seed)
+    }
+
     const draw = (t: number) => {
-      if (tool.kind === 'svg') {
+      if (filtered) {
+        if (display.w <= 0) return
+        const grid = filterGrid(tool, state, t, playing && !!tool.animated)
+        if (!(grid instanceof Promise)) return paintFiltered(grid)
+        const id = ++seq.current
+        busy = true
+        grid
+          .then((gr) => id === seq.current && paintFiltered(gr))
+          .catch((err) => id === seq.current && console.error(err))
+          .finally(() => (busy = false))
+      } else if (tool.kind === 'svg') {
         const el = artRef.current
         if (!el) return
         el.innerHTML = renderContentSvg(tool, state, t)
@@ -67,10 +100,14 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
       }
     }
     draw(phase.current)
-    if (!playing || !tool.animated) return
+    // whatever is still rasterising belongs to a state that is going away
+    const invalidate = () => {
+      seq.current++
+    }
+    if (!playing || !tool.animated) return invalidate
 
     const duration = (tool.duration ?? 6) * 1000
-    const minFrame = tool.kind === 'svg' ? 1000 / SVG_FPS : 0
+    const minFrame = tool.kind === 'svg' || filtered ? 1000 / SVG_FPS : 0
     let raf = 0
     let last = performance.now()
     let lastDraw = 0
@@ -78,15 +115,18 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
       // rAF timestamps can precede the performance.now() taken above, so never step backwards
       phase.current = (phase.current + Math.max(0, now - last) / duration) % 1
       last = now
-      if (now - lastDraw >= minFrame) {
+      if (now - lastDraw >= minFrame && !busy) {
         lastDraw = now
         draw(phase.current)
       }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [tool, state, playing, visible, display, phase, cover])
+    return () => {
+      cancelAnimationFrame(raf)
+      invalidate()
+    }
+  }, [tool, state, playing, visible, display, phase, cover, filtered])
 
   const layers = useMemo(() => {
     if (!visible) return null
@@ -101,7 +141,7 @@ export function Preview({ tool, state, playing = false, lazy = false, className 
     <div ref={hostRef} role="img" aria-label={label ?? `${tool.name} preview`} className={className} style={cover ? undefined : { aspectRatio: `${w} / ${h}` }}>
       {/* isolate: grain blends with the artwork only, never with the page */}
       <div className="relative isolate h-full w-full overflow-hidden">
-        {tool.kind === 'canvas' ? (
+        {tool.kind === 'canvas' || filtered ? (
           <canvas ref={canvasRef} className="block h-full w-full object-cover" />
         ) : (
           <div ref={artRef} className="h-full w-full [&>svg]:block [&>svg]:h-full [&>svg]:w-full" />
