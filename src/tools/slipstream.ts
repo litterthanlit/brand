@@ -6,13 +6,13 @@ import { bool, num, pal, str, type CanvasTool, type ParamValues } from './types'
 
 const TAU = Math.PI * 2
 const NV = 384 // band lookup: nodes across the fan (v)…
-const NA = 64 // …and along it
+const NA = 128 // …and along it (fewer bakes a dense wedge into visible facets)
 const VM = 1.6 // v runs ±VM; the fan itself is |v| ≤ 1
 const A0 = -1.25 // along runs A0…A1 in diagonals: the tail side…
 const A1 = 1.65 // …and the front
 const DV = (2 * VM) / (NV - 1)
 const DA = (A1 - A0) / (NA - 1)
-const SH = 32 // table margin that the flow slides the texture through
+const SH = NA / 2 // table margin that the flow slides the texture through (the shift is up to ~0.9 / DA nodes)
 const AX = NA + 2 * SH
 const CV = 32 // domain-warp grid
 const CA = 14
@@ -39,7 +39,8 @@ interface Band {
   ta: number // share of its strength that carries behind the focus
   ph: number
   sw: number // sideways sway, in v
-  dir: number // haze: which side it fills
+  dir: number // haze: which side it fills; for a shadow, 1 = it can be pinned to the ember
+  pv: number // the across-position it takes when pinned
   brk: Float32Array // low-frequency break-up along its length
 }
 
@@ -56,6 +57,16 @@ interface Look {
   dir: number
   spread: number
   bend: number
+  curl: number
+  tailW: number
+  pin: number
+  skew: number
+  emberOn: boolean
+  sweep: boolean
+  sheet: number
+  rim: number
+  shade: number
+  specLen: number
   r0: number
   reach: number
   tailAmt: number
@@ -76,7 +87,6 @@ interface Look {
   emberR: number
   emberLen: number
   hot: number
-  rim: number
   bloom: number
   /** ground, shadow, deep, signal, light, ember as 0…1 rgb */
   c: Float32Array
@@ -86,6 +96,7 @@ const layouts = new Map<string, Layout>()
 const LW = new Float32Array(NA * NV * 8) // band weights: deep, signal, shadow, light, trail, glow, haze
 const LC = new Float32Array(NA * NV * 3) // composited colour
 const LE = new Float32Array(NA * NV * 3) // emitted light (what blooms)
+const LK = new Float32Array(NA * NV) // shadow density, so the ember can be darkened and hidden by a wedge
 const warp = new Float32Array(CV * CA)
 const wrow = new Float32Array(NV)
 const win = new Float32Array(NV) // the fan's edge: bands fade out toward ±VM
@@ -131,7 +142,7 @@ function build(count: number, mirror: boolean, rng: Rng, noise: Noise, seed: num
   const bands: Band[] = []
   const add = (o: Partial<Band> & Pick<Band, 'k' | 'v' | 'w' | 'amp'>) =>
     bands.push({
-      tone: 0.5, a0: 0, rise: 0.08, len: 1.5, tail: 0.6, ta: 0.5, ph: rng() * TAU, sw: 0.05, dir: 0,
+      tone: 0.5, a0: 0, rise: 0.08, len: 1.5, tail: 0.6, ta: 0.5, ph: rng() * TAU, sw: 0.05, dir: 0, pv: 0,
       brk: table(noise, 1.2 + rng() * 1.2, bands.length * 7.7 + (seed % 97)), ...o,
     })
   const nSp = Math.max(1, Math.round(count * 0.3))
@@ -152,13 +163,24 @@ function build(count: number, mirror: boolean, rng: Rng, noise: Noise, seed: num
     })
   }
   for (let i = 0; i < nSh; i++) {
+    // the first wedge hangs near the axis (and can be pinned to the ember); a second one enters from the far side, on the light's side
+    const v = rng.range(0.08, 0.5)
+    const w = rng.range(0.13, 0.28)
+    const amp = rng.range(0.85, 1)
+    const a0 = rng.range(0, 0.02)
+    const rise = rng.range(0.03, 0.1)
+    const len = rng.range(0.4, 1.3)
     add({
-      k: 1, v: sg * side * (i % 2 ? -1 : 1) * rng.range(0.08, 0.5), w: rng.range(0.13, 0.28) * (i ? 0.7 : 1), amp: rng.range(0.85, 1),
-      a0: rng.range(0, 0.02), rise: rng.range(0.03, 0.1), len: rng.range(0.4, 1.3), tail: 0.25, ta: 0.6, sw: 0.03,
+      k: 1, v: i ? sg * (0.1 + v * 0.7) : sg * side * v, pv: sg * -0.2, w: w * (i ? 1.8 : 1), amp,
+      a0: i ? 0.4 + a0 * 10 : a0, rise: i ? rise * 3 : rise, len: i ? 2 : len, tail: 0.25, ta: 0.6, sw: 0.03, dir: i ? 0 : 1,
     })
   }
   const hosts = bands.slice(3)
-  if (rng.chance(0.4)) add({ k: 1, v: sg * -1.02, w: rng.range(0.2, 0.38), amp: rng.range(0.7, 1), a0: 0, rise: 0.05, len: 2.4, tail: 0.5, ta: 0.7, sw: 0.02 }) // a dark rim on the colour side, like ref 3's black arc
+  // a dark rim on the colour side, like ref 3's black arc. Some seeds have it; the Dark rim param adds it (as a fill out to the frame) to the rest
+  const rimOn = rng.chance(0.4)
+  const rim = { k: 1, v: sg * -1.02, w: 0.3, amp: 0.9, a0: 0, rise: 0.05, len: 2.4, tail: 0.5, ta: 0.7, sw: 0.02, dir: 3, pv: rimOn ? 1 : 0, tone: sg }
+  if (rimOn) add({ ...rim, w: rng.range(0.2, 0.38), amp: rng.range(0.7, 1) })
+  else bands.push({ ...rim, ph: 0, brk: new Float32Array(AX).fill(1) })
   for (let i = 0; i < nSp; i++) {
     const host = hosts[rng.int(0, hosts.length - 1)]
     const v = host.v + (rng.chance(0.5) ? -1 : 1) * host.w * rng.range(1, 1.7)
@@ -169,8 +191,12 @@ function build(count: number, mirror: boolean, rng: Rng, noise: Noise, seed: num
   }
   const lead = bands.find((b) => b.k === 2)!
   add({ k: 3, v: sg * rng.range(0.55, 0.95), w: rng.range(0.25, 0.4), amp: rng.range(0.35, 0.55), rise: 0.14, len: 2.2, tail: 1, ta: 0.9, sw: 0.02 })
-  add({ k: 5, v: sg * rng.range(0.05, 0.25), w: 0.3, amp: 1.3, rise: 0.1, len: 0.25, tail: 1, ta: 1, sw: 0.02 })
-  add({ k: 4, v: lead.v, w: 0.014, amp: 1, tail: 1, ta: 1, sw: lead.sw, ph: lead.ph })
+  const sheet = bands[bands.length - 1]
+  // in a sweep the lead specular and the ember trail ride the outer edge of the light sheet, like ref 2's single streak
+  lead.dir = 2
+  lead.pv = sheet.v + (sheet.v < 0 ? -1 : 1) * sheet.w * 0.35
+  add({ k: 5, v: sg * rng.range(0.05, 0.25), w: 0.3, amp: 0.9, rise: 0.1, len: 0.25, tail: 1, ta: 1, sw: 0.02 })
+  add({ k: 4, v: lead.v + (lead.v < 0 ? -1 : 1) * 0.04, pv: lead.pv + (lead.pv < 0 ? -1 : 1) * 0.07, dir: 2, w: 0.014, amp: 1.3, tail: 1, ta: 1, sw: lead.sw, ph: lead.ph })
 
   return {
     bands,
@@ -194,19 +220,34 @@ function layoutFor(seed: number, count: number, mirror: boolean, rng: Rng, noise
   return L
 }
 
+/** How far along the flow a wedge pinned to the ember runs, in diagonals. */
+const pinLen = (b: Band) => 0.22 + 0.2 * clamp01((b.len - 0.4) / 0.9)
+
 /** A band's strength at distance `a` along the flow (in diagonals): it starts near the focus, swells, thins with distance and breaks up. */
 function env(b: Band, a: number, m: number, k: Look) {
   if (b.k === 6) return a >= 0 ? 1 : 1 - 0.4 * smooth(0, 1.2, -a)
   if (a >= 0) {
-    if (b.k === 4) return 0
+    if (b.k === 4) {
+      if (!k.sweep) return 0
+      const q = 1 - smooth(0, k.trailLen * 1.4, a)
+      return q * q * smooth(0, 0.05, a) * m * k.trail
+    }
     if (b.k === 5) return 1 - smooth(0, b.len, a) // the afterglow is the ember's: it doesn't follow the streaks
+    if (b.k === 1 && b.dir === 1 && k.pin > 0) {
+      // pinned to the ember: a lens that swells just off the focus and is gone well inside the frame.
+      // It fades over several lookup nodes along the flow; a shorter fade bakes into a stepped, ragged tip.
+      const len = pinLen(b)
+      return smooth(b.a0, b.a0 + b.rise, a) * (1 - smooth(len * 0.5, len * 1.25, a)) * k.pin + (1 - k.pin) * smooth(b.a0, b.a0 + b.rise, a) * (1 - 0.45 * smooth(b.len * 0.3, b.len, a)) * m
+    }
+    if (b.k === 2) return smooth(b.a0, b.a0 + b.rise, a) * (1 - smooth(b.len * k.specLen * 0.3, b.len * k.specLen, a)) * m
     return smooth(b.a0, b.a0 + b.rise, a) * (1 - 0.45 * smooth(b.len * 0.3, b.len, a)) * m
   }
+  if (b.k === 4 && k.sweep) return 0
   const reach = b.k === 4 ? k.trailLen : b.tail * k.reach
   if (reach < 0.01) return 0
   const q = 1 - smooth(0, reach, -a)
   const e = q * q * smooth(0, 0.05, -a) * m
-  return b.k === 4 ? e * k.trail : e * b.ta * k.tailAmt
+  return b.k === 4 ? e * k.trail : e * b.ta * k.tailAmt * (b.k === 1 && b.dir === 1 ? 1 - k.pin : 1)
 }
 
 /**
@@ -243,17 +284,26 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
     for (let bi = 0; bi < bands.length; bi++) {
       const b = bands[bi]
       const n = slide(b.brk, aj, s1) * (1 - t) + slide(b.brk, aj, s2) * t
-      const e = env(b, a, 0.45 + 0.55 * smooth(-0.8, 0.45, n), k)
+      const e = env(b, a, b.k === 1 && b.dir === 1 && k.pin > 0 ? 1 : 0.45 + 0.55 * smooth(-0.8, 0.45, n), k)
       let amp = b.amp * e
+      const rimBand = b.dir === 3
+      if (rimBand) {
+        if (k.rim > 0) amp *= Math.max(k.rim, b.pv)
+        else if (!b.pv) continue
+      }
       if (amp < 0.003) continue
-      let c = b.v
+      const pinned = b.k === 1 && b.dir === 1 && k.pin > 0 // a wedge pinned to the ember: nearer the axis, thick at the ember and thinning away
+      let c = pinned ? b.v + (b.pv - b.v) * k.pin : b.dir === 2 && k.sweep ? b.pv : rimBand && k.rim > 0 ? b.v + b.tone * (0.17 + 0.2 * k.rim) : b.v
       if (b.sw) c += k.drift * b.sw * 1.8 * Math.sin(TAU * t + b.ph - a * 2.6)
       if (b.k === 6) amp *= k.haze
-      if (b.k === 3) amp *= 0.45 + 0.55 * k.pm // the broad sheet of light stays quiet in the dark
+      if (b.k === 3) amp *= k.sheet * (0.45 + 0.55 * k.pm) // the broad sheet of light stays quiet in the dark
+      if (b.k === 2 && b.dir !== 2 && k.sweep) amp *= 0.35
       if (b.k === 2 || b.k === 4) amp *= 1 + 0.14 * Math.sin(TAU * 2 * t + b.ph * 1.7 + a * 8)
-      const R = (b.k === 2 ? Math.max(b.w * k.soft, k.minSpec) : b.k === 4 ? k.minSpec * 1.6 : b.w * k.soft) * 2.2
+      // a pinned wedge is a flat lens: its width swells off the focus and closes again at its far end
+      const lens = pinned ? 1 + k.pin * (0.4 * (0.28 + 0.72 * Math.sin(Math.PI * smooth(0, pinLen(b) * 1.25, a))) - 1) : 1
+      const R = (b.k === 2 ? Math.max(b.w * k.soft, k.minSpec) : b.k === 4 ? k.minSpec * (k.sweep ? 0.8 : 1.6) : b.w * k.soft * lens * (pinned ? 1.45 : b.k === 1 && !rimBand ? k.shade : 1)) * 2.2
       const iR = 1 / R
-      const haze = b.k === 6
+      const haze = b.k === 6 || (rimBand && k.rim > 0)
       const lo = haze ? 0 : Math.max(0, Math.floor((c - R - WM + VM) / DV))
       const hi = haze ? NV - 1 : Math.min(NV - 1, Math.ceil((c + R + WM + VM) / DV))
       const dye = b.k === 0
@@ -264,7 +314,7 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
       for (let i = lo; i <= hi; i++) {
         const v = -VM + i * DV + (k.warp > 0 ? wrow[i] : 0)
         let u: number
-        if (haze) u = (1 - smooth(-b.w, b.w, b.dir * (v - c))) * amp
+        if (haze) u = (1 - smooth(-b.w, b.w, (b.k === 6 ? b.dir : b.tone) * (v - c))) * amp
         else {
           const d = (v - c) * iR
           const q = d * d
@@ -281,17 +331,17 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
     const st0 = slide(sa[0], aj, s1) * (1 - t) + slide(sa[0], aj, s2) * t
     const st1 = slide(sa[1], aj, s1) * (1 - t) + slide(sa[1], aj, s2) * t
     const tk = a < 0 ? smooth(0, 0.25, -a) : 0 // washed out behind the focus
-    const near = 0.3 * smooth(0.04, 0.4, Math.abs(a)) // streaks fade out toward the focus, or they'd read as spokes
+    const near = (0.18 + 0.12 * k.pm) * smooth(0.04, 0.4, Math.abs(a)) // streaks fade out toward the focus, or they'd read as spokes
     const sd = 0.55 + 0.45 * (1 - tk)
     for (let i = 0; i < NV; i++) {
       const o = o0 + i * 8
       const m = 1 + near * (sv[0][i] * st0 + sv[1][i] * st1)
       const wt = (LW[o] + LW[o + 1]) * m
       const tone = wt > 1e-5 ? LW[o + 1] / (LW[o] + LW[o + 1]) : 0.5
-      const ks = smooth(0.15, 0.7, LW[o + 2]) // shadows don't take the striations: they'd speckle
-      const p = Math.min(1, LW[o + 3] * m)
+      const ks = smooth(0.12, 0.55, LW[o + 2]) // shadows don't take the striations: they'd speckle. They go to full density, so print inks reach true black
+      const p = Math.min(1, LW[o + 3] * (1 + 0.4 * (m - 1)))
       const tr = Math.min(1, LW[o + 4] * m)
-      const gl = Math.min(1, LW[o + 5] * m)
+      const gl = Math.min(1, LW[o + 5] * m) * (1 - 0.85 * ks) // the afterglow doesn't light up a shadow
       const hz = LW[o + 6] // the haze takes no striations: a sky is smooth
       const xp = wt * k.dens * (1 - 0.92 * tk)
       const po = 1 - 1 / (1 + 1.8 * xp + 0.8 * xp * xp) // dye opacity on paper: saturates softly, so streak edges stay soft
@@ -300,6 +350,7 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
       const dop = 1 - 1 / (1 + 1.4 * xd + 0.6 * xd * xd)
       const dk = 1 - ks * 0.85
       const oc = (aj * NV + i) * 3
+      LK[aj * NV + i] = ks
       for (let c = 0; c < 3; c++) {
         const glc = Li[c] + (E[c] - Li[c]) * 0.32 // print: warm, from the ember
         const gld = Li[c] + (N[c] - Li[c]) * 0.3 // light: cool, from the signal
@@ -319,7 +370,7 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
           rd = 1 - (1 - rd) * (1 - haze * hz * 0.55) * (1 - dye * dop * dk)
           rd = 1 - (1 - rd) * (1 - gld * gl * 0.55)
           rd = 1 - (1 - rd) * (1 - Li[c] * p)
-          rd = 1 - (1 - rd) * (1 - E[c] * tr)
+          rd += (E[c] - rd) * tr // the trail is a lit thing in its own right: it covers the light behind it rather than adding to it
         }
         LC[oc + c] = rd + (rp - rd) * k.pm
         LE[oc + c] = Math.min(1, Li[c] * p + E[c] * tr + (gld + (glc - gld) * k.pm) * gl * 0.35)
@@ -328,21 +379,26 @@ function bake(L: Layout, k: Look, noise: Noise, t: number) {
   }
 }
 
-const geo = { ux: 1, uy: 0, fx: 0, fy: 0, bend: 0, r0: 0, sp: 1, iL: 1, i: 0, ta: 0, tv: 0 }
-const em = { x: 0, y: 0, ux: 1, uy: 0, iSa: 1, iSc: 1, rad: 0, lo: 0.4, hi: 1.7, body: 0, core: 0 }
+const geo = { ux: 1, uy: 0, fx: 0, fy: 0, bend: 0, curl: 0, r0: 0, sp: 1, spT: 1, iL: 1, i: 0, ta: 0, tv: 0 }
+const em = { x: 0, y: 0, ux: 1, uy: 0, iSc: 1, iLf: 1, iLt: 1, hc: 0, iH: 1, rad: 0, t: 0, u: 0, body: 0, core: 0 }
 let cI = new Int32Array(0) // per pixel: lookup node and bilinear fractions. The fan never moves while it plays, so these are cached
 let cTa = new Float32Array(0)
 let cTv = new Float32Array(0)
 let cKey = ''
+
+/** How far a ribbon has lifted off the axis at distance `sa` (in diagonals): the square of it. */
+const lift = (sa: number) => (sa < 0 ? -0.35 : 1) * geo.bend * sa * (sa < 0 ? -sa : sa) // (the tail bends less than the front)
+
+/** Across-the-fan scale at signed distance `a` (px): linear with distance (perspective), and with `curl` it relaxes toward the far end, so the ribbons start steep and flatten out, an S. */
+const den = (a: number) => ((a >= 0 ? geo.sp : geo.spT) * (a < 0 ? -a : a)) / (1 + geo.curl * 2.2 * (a < 0 ? -a : a) * geo.iL) + geo.r0
 
 /** Where a point lands in the baked bands: fan coordinates around the focus (rotate, bend, perspective), as a lookup node and fractions. */
 function locate(x: number, y: number) {
   const dx = x - geo.fx
   const dy = y - geo.fy
   const a = dx * geo.ux + dy * geo.uy
-  const sa = a * geo.iL
-  const v = (dy * geo.ux - dx * geo.uy - geo.bend * sa * Math.abs(sa)) / (geo.sp * Math.abs(a) + geo.r0)
-  let fa = (sa - A0) * (1 / DA)
+  const v = (dy * geo.ux - dx * geo.uy - lift(a * geo.iL)) / den(a)
+  let fa = (a * geo.iL - A0) * (1 / DA)
   let fv = (v + VM) * (1 / DV)
   fa = fa < 0 ? 0 : fa > NA - 1.001 ? NA - 1.001 : fa
   fv = fv < 0 ? 0 : fv > NV - 1.001 ? NV - 1.001 : fv
@@ -353,20 +409,31 @@ function locate(x: number, y: number) {
   geo.tv = fv - jv
 }
 
-/** The ember: a hot spot elongated along the flow, on the axis at `emberAt`; body and core at a point (0 outside). */
+const gauss = (q: number) => 1 / (1 + q * (1 + q * (0.5 + q * 0.1667))) // ≈ exp(-q), without the exp
+
+/**
+ * The ember: molten light smeared along the flow, a teardrop. Its width tapers to a point at the head (toward the fan)
+ * and thins into a long tail behind; the profile is a gaussian with no plateau. `t` is the falloff, `u` the position along
+ * it (-1 tail … +1 head), `body` the opacity, `core` a small hotter spot pulled toward the head.
+ */
 function ember(x: number, y: number) {
   const dx = x - em.x
   const dy = y - em.y
-  const ax = (dx * em.ux + dy * em.uy) * em.iSa
-  const cx = (dy * em.ux - dx * em.uy) * em.iSc
-  const q = ax * ax + cx * cx
-  if (q >= 16) {
+  const ax = dx * em.ux + dy * em.uy
+  const qa = ax * (ax >= 0 ? em.iLf : em.iLt)
+  const cx = (dy * em.ux - dx * em.uy) * em.iSc * (1 + (ax >= 0 ? 0.5 * Math.min(1, qa * qa) : 0.7 * Math.min(1, -qa)))
+  const q = qa * qa + cx * cx
+  if (q >= 9) {
     em.body = 0
     return
   }
-  const e1 = 1 / (1 + q * (1 + q * (0.5 + q * 0.1667))) // ≈ exp(-q), without the exp
-  em.body = 1 - smooth(em.lo, em.hi, q) // a dense body with a soft edge, softer as the focus is
-  em.core = e1 * e1
+  em.t = gauss(q)
+  em.u = ax >= 0 ? Math.min(1, qa) : Math.max(-1, qa)
+  // a little internal streaking along the flow
+  const st = 1 + 0.07 * Math.sin(cx * 4.1 + 1.3) + 0.05 * Math.sin(cx * 9.7 + 0.4)
+  em.body = Math.min(1, 1.12 * em.t * st)
+  const hx = (ax - em.hc) * em.iH
+  em.core = gauss(hx * hx + cx * cx * 2.2)
 }
 
 function frame(lw: number, lh: number, k: Look, t: number) {
@@ -376,24 +443,28 @@ function frame(lw: number, lh: number, k: Look, t: number) {
   geo.fx = k.fx * lw
   geo.fy = k.fy * lh
   geo.bend = k.bend * 0.9 * L
+  geo.curl = k.curl
   geo.r0 = k.spread * k.r0 * L
   geo.sp = k.spread
+  geo.spT = k.spread * k.tailW
   geo.iL = 1 / L
   const breathe = 1 + 0.05 * Math.sin(TAU * t)
-  const sa = k.emberLen * L * breathe
-  const sc = k.emberR * L * breathe
+  const lb = k.emberLen * L * breathe
+  const lf = lb * Math.max(0.55, 1 - 0.45 * k.skew) // the head, toward the fan: short and dense…
+  const lt = lb * Math.max(0.5, 1 + 1.1 * k.skew) // …and the tail behind it, long and thin
   const ea = k.emberAt * 1.5 * L
-  const eb = geo.bend * ea * ea * geo.iL * geo.iL + k.emberV * geo.sp * (ea + geo.r0 / geo.sp)
+  const eb = lift(ea * geo.iL) + k.emberV * den(ea)
   em.x = geo.fx + geo.ux * ea - geo.uy * eb
   em.y = geo.fy + geo.uy * ea + geo.ux * eb
   em.ux = geo.ux
   em.uy = geo.uy
-  em.iSa = 1 / sa
-  em.iSc = 1 / sc
-  em.rad = 4.5 * Math.max(sa, sc)
-  em.lo = 0.45 - 0.3 * k.focus
-  em.hi = 1.5 + 0.8 * k.focus
-  const key = [lw, lh, k.fx, k.fy, k.dir, k.spread, k.bend, k.r0].join('|')
+  em.iSc = 1 / (k.emberR * L * breathe)
+  em.iLf = 1 / lf
+  em.iLt = 1 / lt
+  em.hc = (k.skew < 0 ? -1 : 1) * (0.1 + 0.22 * Math.abs(k.skew)) * lb
+  em.iH = 1 / (0.4 * lb)
+  em.rad = k.emberOn ? 3.1 * Math.max(lf, lt, k.emberR * L) : -1
+  const key = [lw, lh, k.fx, k.fy, k.dir, k.spread, k.tailW, k.bend, k.curl, k.r0].join('|')
   if (key === cKey) return
   const n = lw * lh
   if (cI.length < n) {
@@ -418,6 +489,7 @@ function paint(d: Uint8ClampedArray, lw: number, lh: number, k: Look, gx: number
   const { rad } = em
   const T = LC
   const hot = k.hot
+  const warm = clamp01((E[0] - E[2]) * 1.5)
   for (let yy = 0, i = 0, o = 0; yy < lh; yy++) {
     const y = yy + 0.5
     const eRow = Math.abs(y - em.y) < rad
@@ -437,13 +509,25 @@ function paint(d: Uint8ClampedArray, lw: number, lh: number, k: Look, gx: number
       if (eRow && Math.abs(xx + 0.5 - em.x) < rad) {
         ember(xx + 0.5, y)
         if (em.body > 0) {
-          const core = em.core * hot // …and a hot core, warm rather than white
-          r += (E[0] * k.rim - r) * em.body // a deeper rim…
-          g += (E[1] * k.rim - g) * em.body
-          b += (E[2] * k.rim - b) * em.body
-          r += ((Li[0] + E[0]) * 0.5 - r) * core
-          g += ((Li[1] + E[1]) * 0.5 - g) * core
-          b += ((Li[2] + E[2]) * 0.5 - b) * core
+          // the shadow wedge crosses the ember: it darkens and partly hides it
+          const j0 = i0 / 3
+          const ks = LK[j0] * w00 + LK[j0 + 1] * w01 + LK[j0 + NV] * w10 + LK[j0 + NV + 1] * w11
+          const head = smooth(-0.5, 0.2, em.u * (k.skew >= 0 ? 1 : -1)) // only the head is crossed by a wedge; a shadow lobe behind the focus doesn't eat the tail
+          const ks2 = ks * head * (0.3 + 0.7 * k.pm) // and in the dark a shadow barely hides light
+          const op = em.body * (1 - 0.85 * ks2)
+          const tail = smooth(0, 1, -em.u * (k.skew >= 0 ? 1 : -1)) // the tail washes out into pale pink…
+          const bleed = Math.min(0.85, 0.45 * (1 - smooth(0, 0.5, em.t)) + 0.5 * tail)
+          const deep = (1 - 0.12 * smooth(0.15, 0.5, em.t) * (1 - smooth(0.5, 0.95, em.t))) * (1 - 0.55 * ks2) // …saturation peaks in the mid zone…
+          r += ((E[0] + (Li[0] - E[0]) * bleed) * deep - r) * op
+          g += ((E[1] + (Li[1] - E[1]) * bleed) * deep - g) * op
+          b += ((E[2] + (Li[2] - E[2]) * bleed) * deep - b) * op
+          // …and a small hot core in the head, warm rather than white (a cream that leans yellow for a red ember)
+          const core = em.core * hot * (1 - ks2)
+          const cr = (Li[0] * 0.6 + E[0] * 0.4)
+          const cg = (Li[1] * 0.6 + E[1] * 0.4)
+          r += (cr - r) * core
+          g += (cg + (cr - cg) * 0.3 * warm - g) * core
+          b += ((Li[2] * 0.6 + E[2] * 0.4) - b) * core
         }
       }
       // dye-cloud grain: strongest in the mid-tones, nearly gone in pure white and black
@@ -477,17 +561,21 @@ function gather(cw: number, ch: number, k: Look) {
       let r = LE[i0] * w00 + LE[i0 + 3] * w01 + LE[i1] * w10 + LE[i1 + 3] * w11
       let g = LE[i0 + 1] * w00 + LE[i0 + 4] * w01 + LE[i1 + 1] * w10 + LE[i1 + 4] * w11
       let b = LE[i0 + 2] * w00 + LE[i0 + 5] * w01 + LE[i1 + 2] * w10 + LE[i1 + 5] * w11
-      ember(x, y)
-      const core = em.core * k.hot
-      if (em.body > 0) {
-        r += E[0] * em.body * 0.2 + Li[0] * core * 0.15
-        g += E[1] * em.body * 0.2 + Li[1] * core * 0.15
-        b += E[2] * em.body * 0.2 + Li[2] * core * 0.15
+      let body = 0
+      if (k.emberOn) {
+        ember(x, y)
+        body = em.body
+        const core = em.core * k.hot
+        if (body > 0) {
+          r += E[0] * body * 0.2 + Li[0] * core * 0.15
+          g += E[1] * body * 0.2 + Li[1] * core * 0.15
+          b += E[2] * body * 0.2 + Li[2] * core * 0.15
+        }
       }
       bl[0][o] = r
       bl[1][o] = g
       bl[2][o] = b
-      bl[3][o] = em.body
+      bl[3][o] = body
     }
   }
 }
@@ -574,12 +662,24 @@ function lookFrom(p: ParamValues): Look {
   const soft = num(p, 'focus')
   const ember = num(p, 'ember')
   const lum = luminance(pal(p, 'palette')[0])
+  const [er, , eb] = hexToRgb(pal(p, 'palette')[5])
+  const warmth = clamp01((er - eb) / 128 + 0.5)
   return {
     fx: num(p, 'x'),
     fy: num(p, 'y'),
     dir: (num(p, 'angle') * Math.PI) / 180,
     spread: num(p, 'spread'),
     bend: num(p, 'bend'),
+    curl: num(p, 'curl'),
+    tailW: num(p, 'tailW'),
+    pin: num(p, 'pin'),
+    skew: num(p, 'skew'),
+    emberOn: ember > 0.005,
+    sweep: bool(p, 'sweep'),
+    sheet: num(p, 'sheet'),
+    rim: num(p, 'rim'),
+    shade: num(p, 'shade'),
+    specLen: num(p, 'specLen'),
     r0: 0.03 + 0.04 * ember,
     reach: 0.2 + 1.1 * num(p, 'tail'),
     tailAmt: (0.25 + 0.75 * num(p, 'tail')) * (1 + 3 * (1 - smooth(0.05, 0.3, lum))), // in the dark the tail spills light; on paper it washes out
@@ -597,10 +697,9 @@ function lookFrom(p: ParamValues): Look {
     film: num(p, 'film'),
     emberAt: num(p, 'emberAt'),
     emberV: num(p, 'emberV'),
-    emberR: 0.012 + 0.032 * ember,
-    emberLen: 0.03 + 0.1 * ember,
-    hot: 0.35 + 0.3 * ember,
-    rim: 1 - 0.1 * (1 - smooth(0.4, 0.8, luminance(pal(p, 'palette')[5]))), // a saturated ember has a deeper rim; a white-blue one doesn't
+    emberR: 0.02 + 0.034 * ember,
+    emberLen: 0.04 + 0.085 * ember,
+    hot: (0.55 + 0.4 * ember) * (0.35 + 0.65 * warmth), // a cool ember has a soft core, a warm one a hot core
     bloom: num(p, 'bloom'),
     c,
   }
@@ -621,15 +720,24 @@ export const slipstream: CanvasTool = {
     { type: 'number', key: 'x', label: 'Focus X', min: -0.6, max: 1.6, step: 0.01, default: 0.52, rand: [0.25, 0.75] },
     { type: 'number', key: 'y', label: 'Focus Y', min: -0.6, max: 1.6, step: 0.01, default: 0.58, rand: [0.35, 0.7] },
     { type: 'number', key: 'angle', label: 'Direction', min: -180, max: 180, step: 1, default: -8, unit: '°', rand: [-30, 30] },
-    { type: 'number', key: 'spread', label: 'Spread', min: 0.15, max: 1.4, step: 0.01, default: 0.55, rand: [0.3, 0.8] },
-    { type: 'number', key: 'bend', label: 'Bend', min: -1, max: 1, step: 0.01, default: -0.3, rand: [-0.6, 0.6] },
+    { type: 'number', key: 'spread', label: 'Spread', min: 0.15, max: 1.4, step: 0.01, default: 0.8, rand: [0.4, 1] },
+    { type: 'number', key: 'bend', label: 'Bend', min: -1, max: 1, step: 0.01, default: -0.5, rand: [-0.8, 0.8] },
+    { type: 'number', key: 'curl', label: 'S-curve', min: 0, max: 1, step: 0.01, default: 1, rand: [0, 1] },
     { type: 'number', key: 'tail', label: 'Tail', min: 0, max: 1, step: 0.01, default: 0.65, rand: [0.3, 0.9] },
+    { type: 'number', key: 'tailW', label: 'Tail width', min: 0.4, max: 4, step: 0.01, default: 1, rand: [0.8, 1.6] },
     { type: 'number', key: 'streaks', label: 'Streaks', min: 3, max: 24, step: 1, default: 9, rand: [6, 14] },
+    { type: 'number', key: 'pin', label: 'Wedge at ember', min: 0, max: 1, step: 0.01, default: 1, rand: [0, 1] },
     { type: 'number', key: 'focus', label: 'Soft focus', min: 0, max: 1, step: 0.01, default: 0.7, rand: [0.35, 0.8] },
     { type: 'number', key: 'ember', label: 'Ember', min: 0, max: 1, step: 0.01, default: 0.55, rand: [0.3, 0.8] },
+    { type: 'number', key: 'skew', label: 'Ember smear', min: -1, max: 1, step: 0.01, default: 0.5, rand: [0.3, 0.8] },
     { type: 'number', key: 'emberAt', label: 'Ember along', min: 0, max: 1, step: 0.01, default: 0, rand: [0, 0.08] },
     { type: 'number', key: 'emberV', label: 'Ember across', min: -1, max: 1, step: 0.01, default: 0, rand: [-0.08, 0.08] },
     { type: 'number', key: 'trail', label: 'Ember trail', min: 0, max: 1, step: 0.01, default: 0.2, rand: [0, 0.7] },
+    { type: 'boolean', key: 'sweep', label: 'Sweep: one streak, trail alongside', default: false },
+    { type: 'number', key: 'sheet', label: 'Light sheet', min: 0, max: 5, step: 0.01, default: 1, rand: [0.7, 1.4] },
+    { type: 'number', key: 'specLen', label: 'Speculars reach', min: 0.15, max: 1.6, step: 0.01, default: 1, rand: [0.7, 1.3] },
+    { type: 'number', key: 'shade', label: 'Shadow width', min: 0.2, max: 1.6, step: 0.01, default: 1, rand: [0.8, 1.2] },
+    { type: 'number', key: 'rim', label: 'Dark rim', min: 0, max: 1, step: 0.01, default: 0, rand: [0, 0] },
     { type: 'number', key: 'haze', label: 'Haze', min: 0, max: 1, step: 0.01, default: 0.6, rand: [0.3, 0.8] },
     { type: 'number', key: 'bloom', label: 'Bloom', min: 0, max: 1, step: 0.01, default: 0.5, rand: [0.3, 0.8] },
     { type: 'number', key: 'film', label: 'Film grain', min: 0, max: 1, step: 0.01, default: 0.2, rand: [0.15, 0.5] },
@@ -649,18 +757,18 @@ export const slipstream: CanvasTool = {
     { name: 'Daylight', format: 'landscape', seed: 7 },
     {
       // the dark of ref 2: a thin red trail running back along a specular, light on a green-black ground, in a panoramic strip
-      name: 'Night run', format: 'landscape', seed: 12,
+      name: 'Night run', format: 'landscape', seed: 3,
       params: {
         palette: ['#101A14', '#050907', '#2A5C95', '#5A93CC', '#EAF1F8', '#E0562E'], mount: 'band', paper: '#DCDCDD', margin: 0,
-        x: 0.54, y: 0.66, angle: -16, spread: 0.24, bend: -0.05, tail: 0.9, streaks: 9, focus: 0.75, ember: 0.02, trail: 1, haze: 0.5, bloom: 0.55, film: 0.25, exposure: 0.85,
+        mirror: true, sweep: true, curl: 0, pin: 0, x: 1, y: 0.3, angle: 170, spread: 0.3, bend: 0.1, tail: 0, streaks: 5, focus: 0.7, ember: 0, trail: 1, haze: 0.15, sheet: 1.9, specLen: 0.6, bloom: 0.55, film: 0.25, exposure: 0.8,
       },
     },
     {
-      // ref 3: the vanishing point is off the frame, so the bands run almost parallel under a black arc, with a salmon glow off to one side
-      name: 'Arc', format: 'landscape', seed: 6,
+      // ref 3: the vanishing point is off the frame to the left, so the bands run almost parallel under a black-brown arc (the dark rim), with a black wedge entering from the right and a salmon ember on the wedge's lower edge
+      name: 'Arc', format: 'landscape', seed: 9,
       params: {
-        palette: ['#E4E7EB', '#0C100D', '#2F6FB5', '#4E9AD0', '#F6F5F4', '#EE7A58'], mount: 'mat', paper: '#F4F5F7', margin: 0.03,
-        x: -0.55, y: 0.42, angle: -2, spread: 0.38, bend: -0.12, tail: 0.3, streaks: 14, focus: 0.45, ember: 0.4, emberAt: 0.74, emberV: 0.6, trail: 0, haze: 0.4, bloom: 0.4, film: 0.3,
+        palette: ['#E4E7EB', '#15130E', '#2F6FB5', '#4E9AD0', '#F6F5F4', '#EE7A58'], mount: 'mat', paper: '#F4F5F7', margin: 0.03,
+        curl: 0, pin: 0, rim: 1, shade: 0.7, skew: 0.7, x: -0.2, y: 0.52, angle: 0, spread: 0.3, bend: -0.15, tail: 0.3, streaks: 14, focus: 0.45, ember: 0.42, emberAt: 0.55, emberV: 0.5, trail: 0, haze: 0.4, bloom: 0.7, film: 0.3,
       },
     },
     {
@@ -668,7 +776,7 @@ export const slipstream: CanvasTool = {
       name: 'Litt, light', format: 'portrait', seed: 6,
       params: {
         palette: ['#FAFBFC', '#0E0F11', '#0961BB', '#1A73D5', '#FFFFFF', '#E1F0FF'], mount: 'mat', paper: '#F0F2F5', margin: 0.06,
-        x: 0.3, y: 0.8, angle: -52, spread: 0.6, bend: -0.25, tail: 0.5, streaks: 9, focus: 0.6, ember: 0.6, trail: 0, haze: 0.15, bloom: 0.5, film: 0.15, exposure: 0.42,
+        curl: 0, pin: 0, shade: 0.5, skew: 0.3, x: 0.3, y: 0.8, angle: -52, spread: 0.6, bend: -0.25, tail: 0.5, streaks: 9, focus: 0.6, ember: 0.6, trail: 0, haze: 0.15, bloom: 0.5, film: 0.15, exposure: 0.42,
       },
     },
     {
@@ -676,7 +784,7 @@ export const slipstream: CanvasTool = {
       name: 'Litt, dark', format: 'landscape', seed: 2,
       params: {
         palette: ['#08090A', '#161719', '#0E2440', '#4C9FFF', '#F7F8F9', '#6BB3FF'], mount: 'none',
-        x: 0.42, y: 0.56, angle: -14, spread: 0.42, bend: -0.25, tail: 0.45, streaks: 8, focus: 0.6, ember: 0.5, trail: 0.3, haze: 0.3, bloom: 0.6, film: 0.2, exposure: 0.7,
+        curl: 0, pin: 0, skew: 0.3, x: 0.42, y: 0.56, angle: -14, spread: 0.42, bend: -0.25, tail: 0.45, streaks: 8, focus: 0.6, ember: 0.5, trail: 0.3, haze: 0.3, bloom: 0.6, film: 0.2, exposure: 0.7,
       },
     },
     {
@@ -684,7 +792,7 @@ export const slipstream: CanvasTool = {
       name: 'Comet', format: 'story', seed: 4,
       params: {
         palette: ['#05070B', '#030405', '#16356B', '#3F86E0', '#EAF3FF', '#FF8A4C'], mount: 'none',
-        x: 0.5, y: 0.72, angle: -90, spread: 0.3, bend: -0.2, tail: 0.5, streaks: 10, focus: 0.55, ember: 0.7, trail: 0.2, haze: 0.4, bloom: 0.65, film: 0.3, exposure: 0.9,
+        curl: 0, pin: 0, skew: -0.8, x: 0.5, y: 0.72, angle: -90, spread: 0.3, bend: -0.2, tail: 0.5, streaks: 10, focus: 0.55, ember: 1, trail: 0.2, haze: 0.4, bloom: 0.65, film: 0.3, exposure: 0.9,
       },
     },
   ],
@@ -756,23 +864,30 @@ export const slipstream: CanvasTool = {
       const r1 = Math.max(1, Math.round(((0.012 + 0.03 * k.bloom) * Math.hypot(lw, lh)) / BC))
       const blur = bl.map((b, j) => {
         const src = b.subarray(0, cw * ch)
-        const tight = boxBlur(src, cw, ch, r1)
-        const wide = boxBlur(src, cw, ch, r1 * 3)
+        const tight = boxBlur(boxBlur(src, cw, ch, r1), cw, ch, r1) // four box passes ≈ a gaussian: two make a plus-shaped halo around a bright point
+        const wide = boxBlur(boxBlur(src, cw, ch, r1 * 2), cw, ch, r1 * 3)
         const o = new Float32Array(cw * ch)
-        const [a, c] = j === 3 ? [0.3, 0.45] : [0.48, 0.88]
+        const [a, c] = j === 3 ? [0.5, 1.4] : [0.48, 0.88]
         for (let i = 0; i < o.length; i++) o[i] = (tight[i] * a + wide[i] * c) * k.bloom
         return o
       })
       if (!gimg || gimg.width !== cw || gimg.height !== ch) gimg = new ImageData(cw, ch)
       const gd = gimg.data
+      const tint = [0, 1, 2].map((c) => k.c[15 + c] + (k.c[12 + c] - k.c[15 + c]) * 0.3) // the halation: the ember's colour, a little paler
+      // both layers stay opaque (a low alpha would premultiply the tint into visible hue steps): the light is added,
+      // and on paper the ember's halo is multiplied in, tinting the white pink over a wide area
       for (let pass = 0; pass < 2; pass++) {
         let sd = seed + 1 + pass
         for (let i = 0; i < cw * ch; i++) {
           sd = (Math.imul(sd, 1664525) + 1013904223) | 0 // a little noise so the faint halo doesn't band
           const dither = ((sd >>> 8) / 16777216 - 0.5) * 1.2
-          for (let c = 0; c < 3; c++) gd[i * 4 + c] = pass ? k.c[15 + c] * 255 : blur[c][i] * 255 + dither
-          gd[i * 4 + 3] = pass ? Math.min(1, blur[3][i]) * 255 + dither : 255
+          const hb = blur[3][i]
+          for (let c = 0; c < 3; c++) {
+            gd[i * 4 + c] = pass ? 255 - Math.min(1, hb * 1.3 * k.pm) * (1 - tint[c]) * 255 + dither : (blur[c][i] + hb * tint[c] * 0.5 * (1 - k.pm)) * 255 + dither
+          }
+          gd[i * 4 + 3] = 255
         }
+        if (pass && k.pm < 0.02) break
         glow[pass] ??= document.createElement('canvas')
         glow[pass].width = cw
         glow[pass].height = ch
@@ -793,7 +908,10 @@ export const slipstream: CanvasTool = {
     g.drawImage(work, 0, 0, lw, lh, x0, y0, dw, dh)
     if (k.bloom > 0.01) {
       g.imageSmoothingQuality = 'low'
-      g.drawImage(glow[1], 0, 0, cw, ch, x0, y0, dw, dh)
+      if (k.pm >= 0.02) {
+        g.globalCompositeOperation = 'multiply'
+        g.drawImage(glow[1], 0, 0, cw, ch, x0, y0, dw, dh)
+      }
       g.globalCompositeOperation = 'lighter'
       g.drawImage(glow[0], 0, 0, cw, ch, x0, y0, dw, dh)
       g.globalCompositeOperation = 'source-over'
