@@ -34,14 +34,16 @@ let eye = new Float32Array(0)
 let crs = new Float32Array(0) // crease strength, 0 … 1
 let gcx = new Float32Array(0) // analytic slope of the crease cusp, so normals never difference across it
 let gcy = new Float32Array(0)
-let sdm = new Float32Array(0) // signed distance-ish to the nearest crease, thinning where the crease fades
-let fld = new Float32Array(0) // value, glint, eye, crease line: 4 floats per working px
+let sdm = new Float32Array(0) // signed distance to the nearest crease cusp, in working px
+let gat = new Float32Array(0) // how clearly that crease should be drawn as a line, 0 … 1
+let fld = new Float32Array(0) // value, glint, eye, crease distance, crease gate: FS floats per working px
 let busy = new Uint8Array(0) // 1 where a working-pixel quad needs the full per-pixel treatment
 let tile: Int8Array | null = null
 const ridge = new Float32Array(RN + 1)
 const dridge = new Float32Array(RN + 1)
-const LW0 = 0.0015 // crease line half-width in sdm units, solid → gone
-const LW1 = 0.005
+const FS = 5 // floats per working px in `fld`
+const PIT_FLOOR = Math.exp(-3.5 * 3.5 * 0.5) // a dimple's gaussian value at its 3.5σ cut-off
+const PIT_NORM = 1 / (1 - PIT_FLOOR)
 const BLEND = 0.12 // width of the smooth max between the two crease families
 
 const grow = (a: Float32Array<ArrayBuffer>, n: number) => (a.length >= n ? a : new Float32Array(n))
@@ -191,6 +193,7 @@ interface Frame {
   cb: number // detail grid cell, in working px (≈ CELL artwork units)
   cw: number // detail grid size
   ch: number
+  hw: number // crease hairline half-width, in device px
   dx1: number // crease family directions
   dy1: number
   dx2: number
@@ -306,11 +309,13 @@ function heightPass(f: Frame, lum: Float32Array | null) {
   const { lw, lh, cb, cw, ch, folds } = f
   const n = lw * lh
   const ib = 1 / cb
+  const reach = (f.hw + 0.5) * (lw / f.W) + 1.5 // working px around a crease line that the paint pass must look at closely
   hgt = grow(hgt, n)
   crs = grow(crs, n)
   gcx = grow(gcx, n)
   gcy = grow(gcy, n)
   sdm = grow(sdm, n)
+  gat = grow(gat, n)
   rowB = grow(rowB, cw * SB)
   busy = busy.length >= n ? busy : new Uint8Array(n)
   busy.fill(0, 0, n)
@@ -319,17 +324,40 @@ function heightPass(f: Frame, lum: Float32Array | null) {
     const ty = y * ib - gy
     const r0 = gy * cw * SB
     const r1 = r0 + cw * SB
+    const rm = (gy > 0 ? gy - 1 : 0) * cw * SB
+    const rp = (gy + 2 < ch ? gy + 2 : ch - 1) * cw * SB
     for (let j = 0; j < cw * SB; j++) rowB[j] = gb[r0 + j] + (gb[r1 + j] - gb[r0 + j]) * ty
+    // The height and the two fold fields go through a cubic (Catmull-Rom) here and along x below, not a bilinear blend:
+    // a bilinear surface has a kink on every grid line, the lighting differentiates it, and the kink shows up as a straight line.
+    for (let j = 0; j < cw; j++) {
+      for (let c = 0; c < 3; c++) {
+        const q = j * SB + c
+        const p0 = gb[rm + q]
+        const p1 = gb[r0 + q]
+        const p2 = gb[r1 + q]
+        const p3 = gb[rp + q]
+        rowB[q] = p1 + 0.5 * ty * (p2 - p0 + ty * (2 * p0 - 5 * p1 + 4 * p2 - p3 + ty * (3 * (p1 - p2) + p3 - p0)))
+      }
+    }
     const yw = y * lw
     for (let gx = 0; gx < cw - 1; gx++) {
       const o = gx * SB
       const x0 = gx * cb
-      const hs0 = rowB[o]
-      const hs1 = (rowB[o + SB] - hs0) * ib
-      const s10 = rowB[o + 1]
-      const s11 = (rowB[o + SB + 1] - s10) * ib
-      const s20 = rowB[o + 2]
-      const s21 = (rowB[o + SB + 2] - s20) * ib
+      const om = (gx > 0 ? gx - 1 : 0) * SB
+      const op = (gx + 2 < cw ? gx + 2 : cw - 1) * SB
+      // cubic coefficients along x for height, fold field 1 and fold field 2: value = a + t (b + t (c + t d))
+      const ha = rowB[o]
+      const hb = 0.5 * (rowB[o + SB] - rowB[om])
+      const hc = 0.5 * (2 * rowB[om] - 5 * rowB[o] + 4 * rowB[o + SB] - rowB[op])
+      const hd = 0.5 * (3 * (rowB[o] - rowB[o + SB]) + rowB[op] - rowB[om])
+      const s1a = rowB[o + 1]
+      const s1b = 0.5 * (rowB[o + SB + 1] - rowB[om + 1])
+      const s1c = 0.5 * (2 * rowB[om + 1] - 5 * rowB[o + 1] + 4 * rowB[o + SB + 1] - rowB[op + 1])
+      const s1d = 0.5 * (3 * (rowB[o + 1] - rowB[o + SB + 1]) + rowB[op + 1] - rowB[om + 1])
+      const s2a = rowB[o + 2]
+      const s2b = 0.5 * (rowB[o + SB + 2] - rowB[om + 2])
+      const s2c = 0.5 * (2 * rowB[om + 2] - 5 * rowB[o + 2] + 4 * rowB[o + SB + 2] - rowB[op + 2])
+      const s2d = 0.5 * (3 * (rowB[o + 2] - rowB[o + SB + 2]) + rowB[op + 2] - rowB[om + 2])
       const m10 = rowB[o + 3]
       const m11 = (rowB[o + SB + 3] - m10) * ib
       const m20 = rowB[o + 4]
@@ -342,14 +370,12 @@ function heightPass(f: Frame, lum: Float32Array | null) {
       const gx21 = (rowB[o + SB + 9] - gx20) * ib
       const gy20 = rowB[o + 10]
       const gy21 = (rowB[o + SB + 10] - gy20) * ib
-      // the cusp's slope flips sign across the crease: ramp the flip over ~a pixel, so shading is smooth at working resolution
-      const ie1 = 1 / (1.2 * (Math.abs(gx10) + Math.abs(gy10)) + 1e-4)
-      const ie2 = 1 / (1.2 * (Math.abs(gx20) + Math.abs(gy20)) + 1e-4)
       for (let kx = 0; kx < cb; kx++) {
         const x = x0 + kx
         if (x >= lw) break
-        const s1 = s10 + s11 * kx
-        const s2 = s20 + s21 * kx
+        const tc = kx * ib
+        const s1 = s1a + tc * (s1b + tc * (s1c + tc * s1d))
+        const s2 = s2a + tc * (s2b + tc * (s2c + tc * s2d))
         const e1 = s1 < 0 ? -s1 : s1
         const e2 = s2 < 0 ? -s2 : s2
         const i1 = e1 >= 1 ? RN : (e1 * RN) | 0
@@ -358,7 +384,7 @@ function heightPass(f: Frame, lum: Float32Array | null) {
         const mm2 = m20 + m21 * kx
         const cr1 = ridge[i1] * mm1
         const cr2 = ridge[i2] * mm2
-        let hs = hs0 + hs1 * kx
+        let hs = ha + tc * (hb + tc * (hc + tc * hd))
         if (lum) {
           // photo: the body is the image's luminance, pushed around by the same warp
           const tx = kx * ib
@@ -373,29 +399,40 @@ function heightPass(f: Frame, lum: Float32Array | null) {
         }
         const j = yw + x
         // The families hand over through a smooth max, so there is no ruler-straight seam where one takes over. The
-        // cusp slope of each (×2 to match a two-pixel difference) is blended with the same weights.
-        const sg1 = s1 * ie1
-        const sg2 = s2 * ie2
-        const c1 = folds * mm1 * dridge[i1] * 2 * (sg1 < -1 ? -1 : sg1 > 1 ? 1 : sg1)
-        const c2 = folds * mm2 * dridge[i2] * 2 * (sg2 < -1 ? -1 : sg2 > 1 ? 1 : sg2)
+        // cusp slope of each (×2 to match a two-pixel difference) is blended with the same weights. The slope flips
+        // sign across a crease: ramp the flip over ~a pixel, per pixel, so shading is smooth at working resolution.
+        const gx1 = gx10 + gx11 * kx
+        const gy1 = gy10 + gy11 * kx
+        const gx2 = gx20 + gx21 * kx
+        const gy2 = gy20 + gy21 * kx
+        const l1 = 1.2 * (Math.abs(gx1) + Math.abs(gy1)) + 1e-4 // the ramp's width in s, so it spans about a pixel
+        const l2 = 1.2 * (Math.abs(gx2) + Math.abs(gy2)) + 1e-4
+        const c1 = folds * mm1 * dridge[i1] * 2 * (e1 >= l1 ? (s1 < 0 ? -1 : 1) : s1 / l1)
+        const c2 = folds * mm2 * dridge[i2] * 2 * (e2 >= l2 ? (s2 < 0 ? -1 : 1) : s2 / l2)
         const dd = cr1 - cr2
         const w1 = dd < -BLEND ? 0 : dd > BLEND ? 1 : 0.5 + (0.5 * dd) / BLEND
         crs[j] = cr2 + (cr1 - cr2) * w1 + BLEND * w1 * (1 - w1)
-        gcx[j] = w1 * c1 * (gx10 + gx11 * kx) + (1 - w1) * c2 * (gx20 + gx21 * kx)
-        gcy[j] = w1 * c1 * (gy10 + gy11 * kx) + (1 - w1) * c2 * (gy20 + gy21 * kx)
-        // The hairline follows whichever family is stronger, and only where that crease is clearly strong:
-        // its thickness is scaled by the gate, so it thins to nothing before the crease fades out.
-        if (dd > 0) {
-          const t1 = (mm1 - 0.55) * 2.9
-          const g1 = t1 < 0 ? 0 : t1 > 1 ? 1 : t1
-          sdm[j] = s1 / (g1 * g1 + 0.003)
-          if (g1 > 0 && e1 < 1.5 * (Math.abs(gx10 + gx11 * kx) + Math.abs(gy10 + gy11 * kx)) + LW1 * (g1 * g1 + 0.003)) mark(j, lw)
-        } else {
-          const t2 = (mm2 - 0.55) * 2.9
-          const g2 = t2 < 0 ? 0 : t2 > 1 ? 1 : t2
-          sdm[j] = s2 / (g2 * g2 + 0.003)
-          if (g2 > 0 && e2 < 1.5 * (Math.abs(gx20 + gx21 * kx) + Math.abs(gy20 + gy21 * kx)) + LW1 * (g2 * g2 + 0.003)) mark(j, lw)
+        gcx[j] = w1 * c1 * gx1 + (1 - w1) * c2 * gx2
+        gcy[j] = w1 * c1 * gy1 + (1 - w1) * c2 * gy2
+        // The hairline follows whichever family is stronger. Its distance is true (s over |∇s|, in working px), and a
+        // gate fades it out where that crease is weak or where the two families hand over, so it thins away
+        // before the crease does instead of wandering.
+        const first = dd > 0
+        const sl = first ? s1 : s2
+        const tg = ((first ? mm1 : mm2) - 0.55) * 2.9
+        const ad = first ? dd : -dd
+        let gate = (tg < 0 ? 0 : tg > 1 ? 1 : tg) * (ad > BLEND * 0.5 ? 1 : ad * (2 / BLEND))
+        // far from any cusp (> ~6 px) the exact distance is never used, so skip the sqrt and the divide
+        if (first ? e1 >= 6 * l1 : e2 >= 6 * l2) sdm[j] = sl < 0 ? -8 : 8
+        else {
+          const gm = Math.sqrt(first ? gx1 * gx1 + gy1 * gy1 : gx2 * gx2 + gy2 * gy2)
+          const dist = gm > 1e-6 ? sl / gm : sl < 0 ? -64 : 64
+          sdm[j] = dist < -64 ? -64 : dist > 64 ? 64 : dist
         }
+        const dist = sdm[j]
+        if (gate < 0.02) gate = 0
+        gat[j] = gate
+        if (gate > 0 && (dist < 0 ? -dist : dist) < reach) mark(j, lw)
         hgt[j] = hs + s1 * 0.06 + s2 * 0.03
       }
     }
@@ -413,16 +450,21 @@ function pitPass(f: Frame, pits: Pit[], count: number) {
     const cx = pit.x * u
     const cy = pit.y * u
     const depth = pit.d * 0.2 * (1 + 0.15 * Math.cos(TAU * t + pit.ph))
-    const x0 = Math.max(0, Math.floor(cx - s * 3))
-    const x1 = Math.min(lw - 1, Math.ceil(cx + s * 3))
-    const y0 = Math.max(0, Math.floor(cy - s * 3))
-    const y1 = Math.min(lh - 1, Math.ceil(cy + s * 3))
+    const R = s * 3.5
+    const x0 = Math.max(0, Math.floor(cx - R))
+    const x1 = Math.min(lw - 1, Math.ceil(cx + R))
+    const y0 = Math.max(0, Math.floor(cy - R))
+    const y1 = Math.min(lh - 1, Math.ceil(cy + R))
     const k2 = -0.5 / (s * s)
+    const r2 = R * R
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const dx = x - cx
         const dy = y - cy
-        const gs = Math.exp((dx * dx + dy * dy) * k2)
+        const d2 = dx * dx + dy * dy
+        if (d2 >= r2) continue
+        // radial cut-off with the cut-off value taken off: a clipped bounding box leaves a hard step, and a step lights up as a straight line
+        const gs = (Math.exp(d2 * k2) - PIT_FLOOR) * PIT_NORM
         hgt[y * lw + x] += depth * gs
         if (depth < 0) eye[y * lw + x] += gs * gs * gs
       }
@@ -457,7 +499,7 @@ function shadePass(f: Frame, photo: boolean, lightDeg: number, chrome: number) {
   // flatter than this can't reach the mirror angle: skip the specular maths (the mirror reads a quarter of the slope)
   const gmin = Math.tan(Math.max(0, tilt - beta)) / 0.25
   const gmin2 = gmin * gmin
-  fld = grow(fld, n * 4)
+  fld = grow(fld, n * FS)
   for (let y = 0; y < lh; y++) {
     const up = y > 0 ? -lw : 0
     const dn = y < lh - 1 ? lw : 0
@@ -482,11 +524,12 @@ function shadePass(f: Frame, photo: boolean, lightDeg: number, chrome: number) {
         gl = sp * sp * gain * (photo ? 1 : smoothstep(0.1, 0.4, crs[i]))
       }
       const e = eye[i] > 1 ? 1 : eye[i]
-      const o = i * 4
+      const o = i * FS
       fld[o] = (hgt[i] + folds * crs[i]) * 0.5 + (diff > 0 ? diff : 0) * 0.55
       fld[o + 1] = gl
       fld[o + 2] = e
       fld[o + 3] = sdm[i]
+      fld[o + 4] = gat[i]
       // the paint pass only does the expensive per-pixel work near a glint, an eye or a crease line
       if (gl > 0.01 || e > 0.02) mark(i, lw)
     }
@@ -507,6 +550,7 @@ function mark(i: number, lw: number) {
 }
 
 interface Look {
+  hw: number // crease hairline half-width, device px
   bands: number
   phase: number
   grain: number // band dither, in cycles
@@ -520,6 +564,7 @@ interface Look {
 /** Final pass at device resolution, in strips. The dither goes in before the banding, which is what makes band edges sandy. */
 function paintPass(g: CanvasRenderingContext2D, f: Frame, look: Look) {
   const { W, H, lw, lh, ds } = f
+  const dpw = W / lw // device px per working px
   const { bands, phase, lut: { rgb: lut, px: lutPx }, glint: [hr, hg, hb], rim: [rr, rg, rb], dark: [er, eg, eb] } = look
   const cell = Math.max(1, Math.round(ds * 1.15)) // grain cell ≈ 1 artwork unit, never finer than a device pixel
   // A device pixel that covers several cells shows their average, whose spread shrinks by the number across: small previews look like the export, shrunk.
@@ -558,7 +603,7 @@ function paintPass(g: CanvasRenderingContext2D, f: Frame, look: Look) {
       const ty = fy - iy
       const r0 = iy * lw
       const r1 = r0 + lw
-      for (let j = 0; j < lw; j++) rowF[j] = fld[j * 4 + r0 * 4] + (fld[j * 4 + r1 * 4] - fld[j * 4 + r0 * 4]) * ty
+      for (let j = 0; j < lw; j++) rowF[j] = fld[(r0 + j) * FS] + (fld[(r1 + j) * FS] - fld[(r0 + j) * FS]) * ty
       const yc = ((Y / cell) | 0) & (TH - 1)
       const tr = yc * TW
       const to = rowOff[yc]
@@ -575,15 +620,16 @@ function paintPass(g: CanvasRenderingContext2D, f: Frame, look: Look) {
           continue
         }
         // near a glint, an eye or a crease line: bilinear sample of everything at this pixel
-        const a = (r0 + ix) * 4
-        const c = a + lw * 4
+        const a = (r0 + ix) * FS
+        const c = a + lw * FS
         const w00 = (1 - tx) * (1 - ty)
         const w10 = tx * (1 - ty)
         const w01 = (1 - tx) * ty
         const w11 = tx * ty
-        const sp = fld[a + 1] * w00 + fld[a + 5] * w10 + fld[c + 1] * w01 + fld[c + 5] * w11
-        const ey = fld[a + 2] * w00 + fld[a + 6] * w10 + fld[c + 2] * w01 + fld[c + 6] * w11
-        const cs = fld[a + 3] * w00 + fld[a + 7] * w10 + fld[c + 3] * w01 + fld[c + 7] * w11
+        const sp = fld[a + 1] * w00 + fld[a + FS + 1] * w10 + fld[c + 1] * w01 + fld[c + FS + 1] * w11
+        const ey = fld[a + 2] * w00 + fld[a + FS + 2] * w10 + fld[c + 2] * w01 + fld[c + FS + 2] * w11
+        const cs = fld[a + 3] * w00 + fld[a + FS + 3] * w10 + fld[c + 3] * w01 + fld[c + FS + 3] * w11
+        const ct = fld[a + 4] * w00 + fld[a + FS + 4] * w10 + fld[c + 4] * w01 + fld[c + FS + 4] * w11
         const d2 = noise[tr + ((xc[X] + to + 311) & (TW - 1))] * (avg / 254) // a second, unrelated grain value, ±0.5
         let r = lut[li * 3]
         let gg = lut[li * 3 + 1]
@@ -594,10 +640,11 @@ function paintPass(g: CanvasRenderingContext2D, f: Frame, look: Look) {
           gg += (eg - gg) * e
           b += (eb - b) * e
         }
-        const ac = cs < 0 ? -cs : cs
-        if (ac < LW1) {
-          // the crease itself: a thin dark line down the cusp, found at device resolution
-          const cl = (1 - smoothstep(LW0, LW1, ac)) * 0.5
+        if (ct > 0.02) {
+          // the crease itself: a thin dark line down the cusp, antialiased from its true distance in device px, thinner where the crease is weaker
+          const pd = (cs < 0 ? -cs : cs) * dpw
+          const hw = look.hw * ct
+          const cl = 0.5 * (Math.min(1, Math.max(0, 0.5 + hw - pd)) - Math.min(1, Math.max(0, 0.5 - hw - pd)))
           r += (rr - r) * cl
           gg += (rg - gg) * cl
           b += (rb - b) * cl
@@ -736,7 +783,7 @@ export const thermalFoil: CanvasTool = {
     const H = g.canvas.height
     // The coarse fields live on a smaller working grid; the banding is per device pixel, so it stays crisp.
     // Big outputs (static 2×, exports) get a finer grid so the thinnest glints and rims stay clean.
-    const q = Math.min(0.75, (Math.max(W, H) > 1500 ? 1400 : 720) / Math.max(W, H))
+    const q = Math.min(0.6, (Math.max(W, H) > 1500 ? 1400 : 720) / Math.max(W, H))
     const lw = Math.max(32, Math.round(W * q))
     const lh = Math.max(32, Math.round(H * q))
     const u = lw / w
@@ -748,7 +795,7 @@ export const thermalFoil: CanvasTool = {
     const theta = (num(p, 'angle') * Math.PI) / 180
     const th2 = theta + L.cross
     const f: Frame = {
-      W, H, lw, lh, u, inv: 1 / (m * u), ds: W / w, t,
+      W, H, lw, lh, u, inv: 1 / (m * u), ds: W / w, t, hw: Math.max(0.45, 0.3 * (W / w)),
       sc: num(p, 'scale'), folds: num(p, 'folds') * (lum ? 0.6 : 1), warp: num(p, 'warp') * 0.3,
       aw: Math.ceil(lw / CA) + 1, ah: Math.ceil(lh / CA) + 1, cb, cw: Math.ceil(lw / cb) + 1, ch: Math.ceil(lh / cb) + 1,
       dx1: Math.cos(theta), dy1: Math.sin(theta), dx2: Math.cos(th2), dy2: Math.sin(th2),
@@ -763,6 +810,7 @@ export const thermalFoil: CanvasTool = {
 
     const colors = pal(p, 'palette')
     const look: Look = {
+      hw: f.hw,
       bands: num(p, 'bands'),
       phase: L.phase + t, // whole cycles per loop: the bands crawl across the folds and meet themselves at t = 1
       grain: num(p, 'dither') * 0.3,
