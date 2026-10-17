@@ -10,33 +10,34 @@ Abstract, grainy, editorial generators, each with one-click **moods**.
 
 | # | Tool | What it makes | Output | Motion |
 |---|------|---------------|--------|--------|
-| 01 | Stipple Cloud | A galaxy of stippled dots condensing around an ember core: galaxy, spray or crossing-cone fields, soft blur, and a capture → retain → resume accumulation | PNG | ✓ |
-| 02 | Glitch Field | Pixel blocks, pixel-sorted streaks and radial bursts gathered around a reversed-out mark (hypher H or your own text) | SVG / PNG | ✓ |
-| 03 | Ink Bleed | Saturated ink blooming into paper: fibrous feathered edges, hot/deep thermal cores, blots, splats and brush sweeps | PNG | ✓ |
-| 04 | Long Exposure | Silky, motion-blurred water (or any photo) via a slow-shutter flow smear | PNG | ✓ |
-| 05 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
-| 06 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
-| 07 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
-| 08 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
-| 09 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
-| 10 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
+| 01 | Thermal Foil | Crumpled liquid foil read through a false-colour heat map: banded colour rings, icy glints, sandy grain and film scratches (or lay it over your photo) | PNG | ✓ |
+| 02 | Stipple Cloud | A galaxy of stippled dots condensing around an ember core: galaxy, spray or crossing-cone fields, soft blur, and a capture → retain → resume accumulation | PNG | ✓ |
+| 03 | Glitch Field | Pixel blocks, pixel-sorted streaks and radial bursts gathered around a reversed-out mark (hypher H or your own text) | SVG / PNG | ✓ |
+| 04 | Ink Bleed | Saturated ink blooming into paper: fibrous feathered edges, hot/deep thermal cores, blots, splats and brush sweeps | PNG | ✓ |
+| 05 | Long Exposure | Silky, motion-blurred water (or any photo) via a slow-shutter flow smear | PNG | ✓ |
+| 06 | Line Sweep | String-art envelopes between two rails, stepped connectors, a marker track | SVG / PNG | ✓ |
+| 07 | Particle Stream | Stippled particles swept along vortices and currents | SVG / PNG | ✓ |
+| 08 | Blur Echo | Forms softening row by row, sliced into refracting strips | SVG / PNG | ✓ |
+| 09 | Screen Orb | Gradient spheres and horizons printed through a fine halftone screen | PNG | ✓ |
+| 10 | Photogram | Darkroom treatments (glow, negative, threshold, posterise, duotone) for your image or a generated botanical | PNG | |
+| 11 | Bar Type | Letterforms rebuilt from horizontal bars, and redaction-style text blocks | SVG / PNG | ✓ |
 
 ### Classics
 | # | Tool | Category | Output | Motion |
 |---|------|----------|--------|--------|
-| 11 | Halftone | Pattern | SVG / PNG | ✓ |
-| 12 | Mesh Gradient | Texture | PNG | ✓ |
-| 13 | Dither (upload your own image) | Image | PNG | |
-| 14 | Stamp | Type | SVG / PNG | ✓ |
-| 15 | Bauhaus Grid | Shape | SVG / PNG | |
-| 16 | Flow Field | Texture | SVG / PNG | ✓ |
-| 17 | Truchet | Pattern | SVG / PNG | |
-| 18 | Blob | Shape | SVG / PNG | ✓ |
-| 19 | Topography | Texture | SVG / PNG | ✓ |
-| 20 | Type Repeat | Type | SVG / PNG | ✓ |
-| 21 | Sunburst | Pattern | SVG / PNG | ✓ |
-| 22 | Wave Lines | Pattern | SVG / PNG | ✓ |
-| 23 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
+| 12 | Halftone | Pattern | SVG / PNG | ✓ |
+| 13 | Mesh Gradient | Texture | PNG | ✓ |
+| 14 | Dither (upload your own image) | Image | PNG | |
+| 15 | Stamp | Type | SVG / PNG | ✓ |
+| 16 | Bauhaus Grid | Shape | SVG / PNG | |
+| 17 | Flow Field | Texture | SVG / PNG | ✓ |
+| 18 | Truchet | Pattern | SVG / PNG | |
+| 19 | Blob | Shape | SVG / PNG | ✓ |
+| 20 | Topography | Texture | SVG / PNG | ✓ |
+| 21 | Type Repeat | Type | SVG / PNG | ✓ |
+| 22 | Sunburst | Pattern | SVG / PNG | ✓ |
+| 23 | Wave Lines | Pattern | SVG / PNG | ✓ |
+| 24 | Op-Art Rings | Pattern | SVG / PNG | ✓ |
 
 Every tool supports:
 
