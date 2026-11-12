@@ -47,13 +47,17 @@ export const typeRepeat: SvgTool = {
     const wordW = Math.max(fs * 0.5, measureText(raw, `${weight} ${fs}px ${family}`))
     const unit = wordW + num(p, 'gap') * fs
     const copies = Math.ceil(w / unit) + 2
+    const skew = num(p, 'skew')
+    // skewX slides row ends sideways by up to this much, so extra whole copies keep them filled
+    const pad = Math.abs(Math.tan((skew * Math.PI) / 180)) * (h / 2)
+    const extra = Math.ceil(pad / unit)
     const stagger = num(p, 'stagger')
     const style = str(p, 'style')
     const accentRow = accents.length ? rng.int(0, rows - 1) : -1
     const sw = Math.max(1, fs * 0.025)
 
     let out = rect(w, h, bg)
-    out += `<g transform="translate(${r2(w / 2)} ${r2(h / 2)}) skewX(${-num(p, 'skew')}) translate(${r2(-w / 2)} ${r2(-h / 2)})" font-family="${escapeXml(family)}" font-weight="${weight}" font-size="${r2(fs)}">`
+    out += `<g transform="translate(${r2(w / 2)} ${r2(h / 2)}) skewX(${-skew}) translate(${r2(-w / 2)} ${r2(-h / 2)})" font-family="${escapeXml(family)}" font-weight="${weight}" font-size="${r2(fs)}">`
     for (let i = 0; i < rows; i++) {
       const dir = i % 2 === 0 ? 1 : -1
       const phase = (((i * stagger + dir * t) % 1) + 1) % 1
@@ -63,7 +67,7 @@ export const typeRepeat: SvgTool = {
       const color = i === accentRow ? accents[i % accents.length] : ink
       const paint = outlined ? `fill="none" stroke="${color}" stroke-width="${r2(sw)}"` : `fill="${color}"`
       let row = ''
-      for (let k = 0; k < copies; k++) {
+      for (let k = -extra; k < copies + extra; k++) {
         row += `<text x="${r2(x0 + k * unit)}" y="${r2(y)}" dominant-baseline="central" textLength="${r2(wordW)}" lengthAdjust="spacingAndGlyphs">${text}</text>`
       }
       out += `<g ${paint}>${row}</g>`

@@ -90,8 +90,6 @@ export const dither: CanvasTool = {
     const source = str(p, 'source') === 'image' && !image ? 'orb' : str(p, 'source')
 
     // 1. Paint the greyscale source at low resolution
-    og.fillStyle = colors[0]
-    og.fillRect(0, 0, lw, lh)
     if (source === 'image' && image) {
       const s = str(p, 'fit') === 'contain' ? Math.min(lw / image.width, lh / image.height) : Math.max(lw / image.width, lh / image.height)
       const iw = image.width * s

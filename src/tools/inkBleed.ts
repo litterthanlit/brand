@@ -174,13 +174,7 @@ function fibres(lw: number, lh: number, unit: number, length: number, seed: numb
   g.globalCompositeOperation = 'lighter'
   g.lineCap = 'round'
   // fibre rng is separate from the scene's, so fibres never shift the composition
-  let s = (seed ^ 0x5bd1e995) >>> 0
-  const rnd = () => {
-    s = (s + 0x6d2b79f5) >>> 0
-    let x = Math.imul(s ^ (s >>> 15), s | 1)
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61)
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296
-  }
+  const rnd = createRng(seed ^ 0x5bd1e995)
   const count = Math.round((lw * lh) / 55)
   const len = unit * (6 + length * 26)
   for (let i = 0; i < count; i++) {
@@ -200,7 +194,7 @@ function fibres(lw: number, lh: number, unit: number, length: number, seed: numb
   }
   const d = g.getImageData(0, 0, lw, lh).data
   const out = new Float32Array(lw * lh)
-  for (let i = 0; i < out.length; i++) out[i] = Math.min(1, d[i * 4] / 255)
+  for (let i = 0; i < out.length; i++) out[i] = d[i * 4] / 255
   fibreCache = { key, data: out }
   return out
 }

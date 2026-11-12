@@ -66,7 +66,7 @@ export const flowField: SvgTool = {
       }
       let ci = Math.floor(roll * inks.length)
       if (mode === 'angle') ci = Math.floor((((a0 / (Math.PI * 2)) % 1) + 1) % 1 * inks.length)
-      else if (mode === 'band') ci = Math.min(inks.length - 1, Math.floor((y / h) * inks.length + 0.5 * roll) % inks.length)
+      else if (mode === 'band') ci = Math.floor((y / h) * inks.length + 0.5 * roll) % inks.length
       paths[Math.max(0, Math.min(inks.length - 1, ci))] += d
     }
     const common = `fill="none" stroke-width="${r2(num(p, 'weight') * (m / 1080))}" stroke-linecap="${str(p, 'cap')}" stroke-linejoin="round" stroke-opacity="${num(p, 'opacity')}"`

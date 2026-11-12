@@ -24,8 +24,6 @@ export function defaultsFrom(params: Param[]): ParamValues {
   return out
 }
 
-export const defaultParams = (tool: ToolDef) => defaultsFrom(tool.params)
-
 /** Apply a preset (or a tool's layer defaults) over clean defaults. */
 export function stateFromPreset(tool: ToolDef, preset: Omit<Preset, 'name'> = {}, format?: string): DocState {
   const base = tool.defaults ?? {}
@@ -43,7 +41,7 @@ export function defaultState(tool: ToolDef): DocState {
   return stateFromPreset(tool)
 }
 
-function fitPalette(colors: string[], param: Extract<Param, { type: 'palette' }>) {
+export function fitPalette(colors: string[], param: Extract<Param, { type: 'palette' }>) {
   const min = param.min ?? 2
   const max = param.max ?? 8
   const out = colors.filter(isHex).slice(0, max)

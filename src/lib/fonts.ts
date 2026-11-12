@@ -18,8 +18,14 @@ const FAMILIES: Record<string, Record<number, string>> = {
   'JetBrains Mono': { 400: jb400, 500: jb500, 700: jb700, 800: jb800 },
 }
 
-const nearest = (available: number[], w: number) =>
-  available.reduce((best, a) => (Math.abs(a - w) < Math.abs(best - w) ? a : best), available[0])
+/** CSS font-weight matching, so exports embed the face the browser previews. */
+function nearest(available: number[], w: number) {
+  if (available.includes(w)) return w
+  const heavier = available.filter((a) => a > w).sort((a, b) => a - b)
+  const lighter = available.filter((a) => a < w).sort((a, b) => b - a)
+  if (w >= 400 && w <= 500 && heavier[0] <= 500) return heavier[0]
+  return w <= 500 ? (lighter[0] ?? heavier[0]) : (heavier[0] ?? lighter[0])
+}
 
 /** Register every artwork font and wait (bounded) for them, so text measurement is accurate from the first render. */
 export async function loadArtworkFonts(timeoutMs = 2500) {

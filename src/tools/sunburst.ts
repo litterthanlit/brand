@@ -32,8 +32,10 @@ export const sunburst: SvgTool = {
     const taper = num(p, 'taper')
     const mode = str(p, 'colorMode')
     const step = (Math.PI * 2) / n
+    // a straight edge between two points at radius R dips to R·cos(step/2); push ray ends out so that dip still clears the corners
+    const Rc = step < Math.PI ? R / Math.cos(step / 2) : R
     // rotating by one full colour period keeps the loop seamless
-    const period = mode === 'alternate' ? 2 : mode === 'cycle' ? inks.length : n
+    const period = mode === 'alternate' ? 2 : mode === 'cycle' && n % inks.length === 0 ? inks.length : n
     const rot = t * step * period
     const paths = inks.map(() => '')
     for (let i = 0; i < n; i++) {
@@ -46,9 +48,9 @@ export const sunburst: SvgTool = {
       const a2 = mid + half
       const pt = (a: number, r: number) => `${r2(cx + Math.cos(a) * r)},${r2(cy + Math.sin(a) * r)}`
       if (twist === 0) {
-        paths[ci] += `M${r2(cx)},${r2(cy)}L${pt(a1, R)}L${pt(a2, R)}Z`
+        paths[ci] += `M${r2(cx)},${r2(cy)}L${pt(a1, R)}L${pt(a1, Rc)}L${pt(a2, Rc)}L${pt(a2, R)}Z`
       } else {
-        paths[ci] += `M${r2(cx)},${r2(cy)}Q${pt(a1 + twist, R * 0.5)} ${pt(a1 + twist * 1.6, R)}L${pt(a2 + twist * 1.6, R)}Q${pt(a2 + twist, R * 0.5)} ${r2(cx)},${r2(cy)}Z`
+        paths[ci] += `M${r2(cx)},${r2(cy)}Q${pt(a1 + twist, R * 0.5)} ${pt(a1 + twist * 1.6, R)}L${pt(a1 + twist * 1.6, Rc)}L${pt(a2 + twist * 1.6, Rc)}L${pt(a2 + twist * 1.6, R)}Q${pt(a2 + twist, R * 0.5)} ${r2(cx)},${r2(cy)}Z`
       }
     }
     let out = rect(w, h, bg) + paths.map((d, i) => (d ? `<path fill="${inks[i]}" d="${d}"/>` : '')).join('')

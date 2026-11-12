@@ -149,8 +149,7 @@ function FeaturedStrip({ reducedMotion }: { reducedMotion: boolean }) {
   const items = useMemo(() => {
     const mk = (id: string, preset: Omit<Preset, 'name'>) => {
       const tool = getTool(id)!
-      const base = tool.defaults ?? {}
-      const state = stateFromPreset(tool, { ...preset, finish: { ...base.finish, ...preset.finish }, type: { ...base.type, ...preset.type } })
+      const state = stateFromPreset(tool, preset)
       return { tool, state, n: pad(TOOLS.indexOf(tool) + 1) }
     }
     return [

@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
+import { fitPalette } from '../lib/engine'
 import { PALETTES } from '../lib/palettes'
 import type { Param, ParamValue, ParamValues } from '../tools/types'
 import { CloseIcon, ImageIcon, LockIcon, PlusIcon, UnlockIcon } from './Icons'
@@ -195,7 +196,7 @@ function ControlRow({ param, value, locked, showLock, onChange, onToggleLock }: 
               aria-label={`${locked ? 'Unlock' : 'Lock'} ${param.label} when randomising`}
               title={locked ? 'Locked: Randomize keeps this' : 'Lock to keep when randomising'}
               className={`grid h-6 w-6 place-items-center rounded-md transition-all duration-150 hover:bg-paper-2 ${
-                locked ? 'text-accent-ink opacity-100' : 'text-ink-3 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
+                locked ? 'text-accent opacity-100' : 'text-ink-3 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
               }`}
             >
               {locked ? <LockIcon size={13} /> : <UnlockIcon size={13} />}
@@ -226,7 +227,7 @@ function ColorSwatch({ label, value, onChange, onRemove }: { label: string; valu
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${label}`}
-          className="absolute -top-1 -right-1 hidden h-4 w-4 place-items-center rounded-full bg-ink text-paper group-hover/sw:grid focus-visible:grid"
+          className="absolute -top-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-ink text-paper opacity-0 transition-opacity duration-150 group-hover/sw:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <CloseIcon size={9} strokeWidth={3} />
         </button>
@@ -239,11 +240,6 @@ function PaletteEditor({ param, value, onChange }: { param: Extract<Param, { typ
   const [open, setOpen] = useState(false)
   const min = param.min ?? 2
   const max = param.max ?? 8
-  const fit = (colors: string[]) => {
-    const out = colors.slice(0, max)
-    for (let i = 0; out.length < min; i++) out.push(out[i % out.length])
-    return out
-  }
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
@@ -281,7 +277,7 @@ function PaletteEditor({ param, value, onChange }: { param: Extract<Param, { typ
             <li key={pl.name}>
               <button
                 type="button"
-                onClick={() => onChange(fit(pl.colors))}
+                onClick={() => onChange(fitPalette(pl.colors, param))}
                 className="group/p w-full rounded-md p-1.5 text-left transition-colors hover:bg-paper-2"
               >
                 <span className="flex h-5 overflow-hidden rounded-sm">
@@ -341,7 +337,16 @@ function ImageInput({ value, onChange }: { value: ImageBitmap | null; onChange: 
           <span className="block text-ink">{value ? `Image loaded · ${value.width}×${value.height}` : 'Drop or choose an image'}</span>
           <span className="block text-[12px] text-ink-3">Stays on your device, never uploaded</span>
         </span>
-        <input id={id} type="file" accept="image/*" className="sr-only" onChange={(e) => load(e.target.files?.[0])} />
+        <input
+          id={id}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(e) => {
+            load(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
       </label>
       {value && (
         <button type="button" onClick={() => onChange(null)} className="mt-2 text-[12px] text-ink-3 transition-colors hover:text-ink">
@@ -349,7 +354,7 @@ function ImageInput({ value, onChange }: { value: ImageBitmap | null; onChange: 
         </button>
       )}
       {error && (
-        <p role="alert" className="mt-2 text-[12px] text-accent-ink">
+        <p role="alert" className="mt-2 text-[12px] text-accent">
           {error}
         </p>
       )}

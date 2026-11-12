@@ -168,7 +168,6 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
     }
   }, [state, tool.id, notify])
 
-
   const index = TOOLS.findIndex((t) => t.id === tool.id)
   const hasImageParam = tool.params.some((p) => p.type === 'image')
   const { w, h } = sizeOf(state)
@@ -272,7 +271,12 @@ export function Studio({ tool, data }: { tool: ToolDef; data: string | null }) {
                   className={`relative h-10 text-[13px] transition-colors duration-200 ${active ? 'text-ink' : 'text-ink-3 hover:text-ink-2'}`}
                 >
                   {t.label}
-                  {t.id !== 'generator' && layerActive(t.id) && <span aria-label="(on)" className="ml-1.5 inline-block h-1 w-1 -translate-y-0.5 rounded-full bg-accent" />}
+                  {t.id !== 'generator' && layerActive(t.id) && (
+                    <>
+                      <span aria-hidden="true" className="ml-1.5 inline-block h-1 w-1 -translate-y-0.5 rounded-full bg-accent" />
+                      <span className="sr-only"> (on)</span>
+                    </>
+                  )}
                   {active && <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-px bg-ink" />}
                 </button>
               )

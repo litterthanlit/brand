@@ -109,38 +109,43 @@ export async function recordVideo(tool: ToolDef, state: DocState, onProgress?: (
   const g = canvas.getContext('2d')!
 
   const buffer: ImageBitmap[] = []
-  const frameCanvas = document.createElement('canvas')
-  const frame = await createCompositor(tool, state, scale)
-  for (let i = 0; i < frames; i++) {
-    await frame(frameCanvas, i / frames)
-    buffer.push(await createImageBitmap(frameCanvas))
-    onProgress?.((i / frames) * 0.5)
-    // yield a task between frames so the page stays responsive and progress repaints
-    await new Promise((r) => setTimeout(r, 0))
-  }
-
-  const mimeType = pickMime()
-  const stream = canvas.captureStream(fps)
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 })
-  const chunks: Blob[] = []
-  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data)
-  const done = new Promise<void>((res) => (recorder.onstop = () => res()))
-  g.drawImage(buffer[0], 0, 0)
-  recorder.start()
-  const start = performance.now()
-  await new Promise<void>((resolve) => {
-    const tick = () => {
-      const i = Math.floor(((performance.now() - start) / 1000) * fps)
-      if (i >= frames) return resolve()
-      g.drawImage(buffer[i], 0, 0)
-      onProgress?.(0.5 + (i / frames) * 0.5)
-      requestAnimationFrame(tick)
+  let stream: MediaStream | undefined
+  try {
+    const frameCanvas = document.createElement('canvas')
+    const frame = await createCompositor(tool, state, scale)
+    for (let i = 0; i < frames; i++) {
+      await frame(frameCanvas, i / frames)
+      buffer.push(await createImageBitmap(frameCanvas))
+      onProgress?.((i / frames) * 0.5)
+      // yield a task between frames so the page stays responsive and progress repaints
+      await new Promise((r) => setTimeout(r, 0))
     }
-    tick()
-  })
-  recorder.stop()
-  await done
-  buffer.forEach((b) => b.close())
-  const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
-  downloadBlob(new Blob(chunks, { type: mimeType || 'video/webm' }), `${fileBase(tool, state)}.${ext}`)
+
+    const mimeType = pickMime()
+    stream = canvas.captureStream(fps)
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 })
+    const chunks: Blob[] = []
+    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+    const done = new Promise<void>((res) => (recorder.onstop = () => res()))
+    g.drawImage(buffer[0], 0, 0)
+    recorder.start()
+    const start = performance.now()
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        const i = Math.floor(((performance.now() - start) / 1000) * fps)
+        if (i >= frames) return resolve()
+        g.drawImage(buffer[i], 0, 0)
+        onProgress?.(0.5 + (i / frames) * 0.5)
+        requestAnimationFrame(tick)
+      }
+      tick()
+    })
+    recorder.stop()
+    await done
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+    downloadBlob(new Blob(chunks, { type: mimeType || 'video/webm' }), `${fileBase(tool, state)}.${ext}`)
+  } finally {
+    buffer.forEach((b) => b.close())
+    stream?.getTracks().forEach((t) => t.stop())
+  }
 }

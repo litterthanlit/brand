@@ -103,7 +103,7 @@ export const blurEcho: SvgTool = {
       const s = Math.max(0.2, 1 - Math.abs(k) * falloff)
       // each strip shows the column displaced toward its own centre, scaled down with distance
       const stripCentre = x + sw / 2
-      const dx = (stripCentre - w / 2) * (1 - shift * 0.5 * (1 + 0.15 * wobble)) * (strips > 1 ? 1 : 0)
+      const dx = (stripCentre - w / 2) * (1 - shift * 0.5 * (1 + 0.15 * wobble))
       defs += `<clipPath id="${cid}"><rect x="${r2(x)}" y="0" width="${r2(sw)}" height="${h}"/></clipPath>`
       body +=
         `<g clip-path="url(#${cid})"><use href="#be-pat-${uid}" transform="translate(${r2(dx + (w / 2) * (1 - s))} ${r2((h / 2) * (1 - s))}) scale(${r2(s)})"/></g>`

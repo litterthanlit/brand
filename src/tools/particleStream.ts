@@ -21,7 +21,7 @@ export const particleStream: SvgTool = {
     { type: 'number', key: 'spacing', label: 'Dot spacing', min: 1, max: 8, step: 1, default: 3 },
     { type: 'number', key: 'size', label: 'Dot size', min: 1, max: 16, step: 0.5, default: 5, unit: 'px' },
     { type: 'number', key: 'jitter', label: 'Scatter', min: 0, max: 1, step: 0.01, default: 0.35 },
-    { type: 'number', key: 'curl', label: 'Curl', min: 0, max: 2, step: 0.01, default: 0.6 },
+    { type: 'number', key: 'curl', label: 'Curl', min: 0, max: 2, step: 0.01, default: 0.6, when: (p) => p.field !== 'flow' },
     {
       type: 'select', key: 'shape', label: 'Mark', default: 'square',
       options: [{ value: 'square', label: 'Square' }, { value: 'circle', label: 'Dot' }, { value: 'mix', label: 'Mixed' }],
@@ -73,7 +73,6 @@ export const particleStream: SvgTool = {
       return [(-dy / d) * s - (dx / d) * 0.25, (dx / d) * s - (dy / d) * 0.25]
     }
     const dir = (x: number, y: number): [number, number] => {
-      const n = noise.n2((x / m) * 1.6, (y / m) * 1.6) * curl * Math.PI
       let vx: number
       let vy: number
       if (field === 'flow') {
@@ -93,6 +92,7 @@ export const particleStream: SvgTool = {
       } else {
         ;[vx, vy] = vortex(x, y, c1, spin)
       }
+      const n = noise.n2((x / m) * 1.6, (y / m) * 1.6) * curl * Math.PI
       const cs = Math.cos(n)
       const sn = Math.sin(n)
       const l = Math.hypot(vx, vy) || 1
@@ -120,26 +120,32 @@ export const particleStream: SvgTool = {
       const ci = pickInk(rng())
       const scale = rng.range(0.5, 1.25)
       const round = shape === 'circle' || (shape === 'mix' && rng.chance(0.5))
-      // integrate the stream path
+      // integrate the stream path; jitter is drawn per path point so rng use never depends on t
       const pts: [number, number][] = [[x, y]]
+      const jit: [number, number][] = [[rng() - 0.5, rng() - 0.5]]
       for (let s = 0; s < len; s++) {
         const [dx, dy] = dir(x, y)
         x += dx * step
         y += dy * step
         pts.push([x, y])
+        jit.push([rng() - 0.5, rng() - 0.5])
       }
+      const js = jitter * size * 2
       // dots slide one spacing along the path per loop, fading in and out at the ends
       const offset = (((t % 1) + 1) % 1) * spacing
       for (let s = offset; s < len; s += spacing) {
         const i = Math.floor(s)
         const f = s - i
+        const j = Math.min(i + 1, len)
         const [x0, y0] = pts[i]
-        const [x1, y1] = pts[Math.min(i + 1, len)]
+        const [x1, y1] = pts[j]
         const env = Math.sin(Math.PI * Math.min(1, s / len))
         const sz = size * scale * (0.35 + 0.65 * env)
         if (sz < 0.3) continue
-        const jx = (rng() - 0.5) * jitter * size * 2
-        const jy = (rng() - 0.5) * jitter * size * 2
+        const [jx0, jy0] = jit[i]
+        const [jx1, jy1] = jit[j]
+        const jx = (jx0 + (jx1 - jx0) * f) * js
+        const jy = (jy0 + (jy1 - jy0) * f) * js
         paths[ci] += mark(x0 + (x1 - x0) * f + jx, y0 + (y1 - y0) * f + jy, sz, round)
       }
     }

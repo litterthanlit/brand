@@ -35,20 +35,6 @@ export function smoothClosedPath(pts: [number, number][], tension = 1) {
   return d + 'Z'
 }
 
-/** Smooth open path through points. */
-export function smoothOpenPath(pts: [number, number][]) {
-  if (pts.length < 2) return ''
-  let d = `M${r2(pts[0][0])},${r2(pts[0][1])}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(i - 1, 0)]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[Math.min(i + 2, pts.length - 1)]
-    d += `C${r2(p1[0] + (p2[0] - p0[0]) / 6)},${r2(p1[1] + (p2[1] - p0[1]) / 6)} ${r2(p2[0] - (p3[0] - p1[0]) / 6)},${r2(p2[1] - (p3[1] - p1[1]) / 6)} ${r2(p2[0])},${r2(p2[1])}`
-  }
-  return d
-}
-
 export const FONT_STACKS: Record<string, string> = {
   sans: "'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif",
   serif: "Georgia, 'Times New Roman', Times, serif",

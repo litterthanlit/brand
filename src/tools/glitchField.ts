@@ -197,9 +197,9 @@ function build(w: number, h: number, p: ParamValues, rng: Rng, noise: Noise): La
     }
   }
   /** Horizontal bar growing outward from `x`; its anchor is pushed out of the mark so streaks run away from it. */
-  const streak = (x: number, y: number, len: number, hh: number, dir: number, col = 1) => {
+  const streak = (x: number, y: number, len: number, hh: number, dir: number) => {
     if (anch && y + hh > anch[1] && y < anch[3]) x = dir > 0 ? Math.max(x, anch[2] + rng.int(-2, 8)) : Math.min(x, anch[0] - rng.int(-2, 8))
-    add(x, y, clamp(ri(len * vs), 1, gw), ri(hh * vs), col, 0.2, dir)
+    add(x, y, clamp(ri(len * vs), 1, gw), Math.max(1, ri(hh * vs)), 1, 0.2, dir)
   }
   const tall = () => {
     const q = rng()
@@ -404,7 +404,7 @@ function build(w: number, h: number, p: ParamValues, rng: Rng, noise: Noise): La
           d += seg + gap
         }
       }
-      y += ri(hh * vs) + ri((rng() < 0.6 ? 1 : rng() < 0.5 ? 0 : 2) * vs)
+      y += Math.max(1, ri(hh * vs)) + ri((rng() < 0.6 ? 1 : rng() < 0.5 ? 0 : 2) * vs)
     }
     rows(0.25, 2.5)
     cloud(ri(N * 0.15), sx * 0.7, sy * 0.7)

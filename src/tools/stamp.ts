@@ -15,7 +15,6 @@ function outline(shape: string, cx: number, cy: number, R: number, points: numbe
   if (shape === 'circle') {
     return `M${r2(cx - R)},${r2(cy)}a${r2(R)},${r2(R)} 0 1,0 ${r2(2 * R)},0a${r2(R)},${r2(R)} 0 1,0 ${r2(-2 * R)},0Z`
   }
-  const pts: string[] = []
   if (shape === 'scallop') {
     // arcs bulging outward between points on the circle
     const step = (Math.PI * 2) / points
@@ -32,6 +31,7 @@ function outline(shape: string, cx: number, cy: number, R: number, points: numbe
   }
   const inner = INNER[shape] ?? 0.9
   const count = points * 2
+  const pts: string[] = []
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 - Math.PI / 2
     const rr = i % 2 === 0 ? R : R * inner

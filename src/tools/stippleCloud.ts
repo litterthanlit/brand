@@ -51,7 +51,7 @@ let off: HTMLCanvasElement[] | null = null
 let fillKey = ''
 let fills = new Float32Array(K * 4)
 let bufs: ImageData[] = []
-let cnt = new Uint32Array(K + 1)
+const cnt = new Uint32Array(K + 1)
 let px = new Float32Array(0)
 let py = new Float32Array(0)
 let pr = new Float32Array(0)
@@ -252,18 +252,17 @@ function toneFills(ink: string, core: string) {
  * Software raster of the tone-sorted dots: antialiased discs (pills when stretched) blended over an opaque buffer.
  * Thousands of tiny canvas paths are the slow part of a frame; this costs a few ms and looks the same.
  */
-function splat(d: Uint8ClampedArray, W: number, H: number, sx: number, sy: number, ox: number, oy: number, rgba: Float32Array, stride = 1) {
-  const grow = Math.sqrt(stride) // skipped dots hand their area to the ones drawn
+function splat(d: Uint8ClampedArray, W: number, H: number, sx: number, sy: number, ox: number, oy: number, rgba: Float32Array) {
   for (let b = 0; b < K; b++) {
     const cr = rgba[b * 4]
     const cg = rgba[b * 4 + 1]
     const cb = rgba[b * 4 + 2]
     const ca = rgba[b * 4 + 3]
-    for (let q = cnt[b]; q < cnt[b + 1]; q += stride) {
+    for (let q = cnt[b]; q < cnt[b + 1]; q++) {
       const i = ord[q]
       const x = px[i] * sx + ox
       const y = py[i] * sy + oy
-      let r = Math.max(0.45, pr[i] * sx * grow)
+      let r = Math.max(0.45, pr[i] * sx)
       const e = pe[i]
       let hl = 0
       let ux = 1

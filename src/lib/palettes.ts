@@ -45,5 +45,3 @@ export const PALETTES: Palette[] = [
   { name: 'Hypher Paper', colors: ['#FAF9F6', '#000000', '#0066FF', '#FF5A00'] },
   { name: 'Hypher Black', colors: ['#000000', '#FAF9F6', '#0066FF', '#FF5A00'] },
 ]
-
-export const DEFAULT_PALETTE = PALETTES[0].colors

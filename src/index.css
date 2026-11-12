@@ -7,14 +7,12 @@
   /* A dark room. The artwork is the only light source; the UI stays out of the way. */
   --color-paper: #0a0a0b;
   --color-paper-2: #141416;
-  --color-panel: #0e0e10;
   --color-ink: #ededed;
   --color-ink-2: #a1a1a6;
   --color-ink-3: #7c7c83;
   --color-line: #1d1d20;
   --color-line-2: #2c2c30;
   --color-accent: #c4b5fd;
-  --color-accent-ink: #c4b5fd;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
